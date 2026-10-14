@@ -29,19 +29,24 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
         catalogRepository: context.read<CatalogRepository>(),
       );
   var _loaded = false;
+  late bool _formReady = widget.id == null;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_loaded) return;
     _loaded = true;
+    if (widget.id == null) _viewModel.beginNewCashBill();
+    _viewModel.includeVoid = true;
     _viewModel.reload().then((_) {
+      if (!mounted) return;
       final id = widget.id;
       if (id != null) {
         final bill = _viewModel.billById(id);
-        if (bill != null) _viewModel.beginEditCashBill(bill);
-      } else {
-        _viewModel.beginNewCashBill();
+        if (bill != null) {
+          _viewModel.beginEditCashBill(bill);
+          setState(() => _formReady = true);
+        }
       }
     });
   }
@@ -61,19 +66,20 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
             resizeToAvoidBottomInset: true,
             navigationBar: CupertinoNavigationBar(
               middle: Text(widget.id == null ? '新增现金账' : '编辑现金账'),
+              transitionBetweenRoutes: false,
             ),
             child: SafeArea(
-              top: false,
               child: ListView(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(
-                  appPadding,
-                  96,
-                  appPadding,
-                  appPadding,
-                ),
+                padding: const EdgeInsets.all(appPadding),
                 children: [
+                  if (_viewModel.isLoading)
+                    const InfoCard(title: '正在读取', body: '正在加载现金账。'),
+                  if (!_viewModel.isLoading &&
+                      !_formReady &&
+                      _viewModel.errorMessage == null)
+                    const InfoCard(title: '未找到现金账', body: '请返回列表刷新，不会新增账目。'),
                   if (_viewModel.errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -82,7 +88,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                         body: _viewModel.errorMessage!,
                       ),
                     ),
-                  _TextFieldRow(
+                  LedgerTextField(
                     label: '日期 YYYY-MM-DD',
                     value: _viewModel.businessDateText,
                     keyboardType: TextInputType.datetime,
@@ -106,7 +112,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  _TextFieldRow(
+                  LedgerTextField(
                     label: '金额',
                     value: _viewModel.amountText,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -115,7 +121,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                     onChanged: (value) => _viewModel.amountText = value,
                   ),
                   const SizedBox(height: 12),
-                  _SelectRow<int?>(
+                  LedgerSelectionRow<int?>(
                     label: '店铺范围',
                     value: _viewModel.shopId,
                     display:
@@ -127,7 +133,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                     onChanged:
                         (value) => setState(() => _viewModel.shopId = value),
                   ),
-                  _SelectRow<int>(
+                  LedgerSelectionRow<int>(
                     label: '分类',
                     value: _viewModel.categoryId,
                     display: _viewModel.categoryName,
@@ -139,7 +145,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                         (value) =>
                             setState(() => _viewModel.categoryId = value),
                   ),
-                  _SelectRow<int>(
+                  LedgerSelectionRow<int>(
                     label: '账户',
                     value: _viewModel.accountId,
                     display: _viewModel.accountName,
@@ -150,7 +156,7 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                     onChanged:
                         (value) => setState(() => _viewModel.accountId = value),
                   ),
-                  _SelectRow<int?>(
+                  LedgerSelectionRow<int?>(
                     label: '往来方',
                     value: _viewModel.partyId,
                     display:
@@ -163,15 +169,27 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
                         (value) => setState(() => _viewModel.partyId = value),
                   ),
                   const SizedBox(height: 12),
-                  _TextFieldRow(
+                  LedgerTextField(
                     label: '备注',
                     value: _viewModel.noteText,
                     onChanged: (value) => _viewModel.noteText = value,
                   ),
                   const SizedBox(height: 18),
+                  if (_viewModel.lastSaveCommitted &&
+                      _viewModel.errorMessage != null)
+                    CupertinoButton(
+                      onPressed:
+                          _viewModel.isLoading ? null : _viewModel.reload,
+                      child: const Text('刷新'),
+                    ),
                   CupertinoButton.filled(
                     key: const ValueKey('cash-save-button'),
-                    onPressed: _viewModel.canSubmit ? _save : null,
+                    onPressed:
+                        _formReady &&
+                                !_viewModel.isLoading &&
+                                _viewModel.canSubmit
+                            ? _save
+                            : null,
                     child: Text(_viewModel.isSaving ? '保存中…' : '保存'),
                   ),
                 ],
@@ -215,6 +233,7 @@ class _CashBillDetailPageState extends State<CashBillDetailPage> {
   @override
   void initState() {
     super.initState();
+    _viewModel.includeVoid = true;
     Future<void>.microtask(_viewModel.reload);
   }
 
@@ -231,14 +250,26 @@ class _CashBillDetailPageState extends State<CashBillDetailPage> {
       builder: (context, _) {
         final bill = _viewModel.billById(widget.id);
         return CupertinoPageScaffold(
-          navigationBar: const CupertinoNavigationBar(middle: Text('现金账详情')),
+          navigationBar: const CupertinoNavigationBar(
+            middle: Text('现金账详情'),
+            transitionBetweenRoutes: false,
+          ),
           child: SafeArea(
             child: ListView(
               padding: const EdgeInsets.all(appPadding),
               children: [
                 if (_viewModel.errorMessage != null)
-                  InfoCard(title: '读取失败', body: _viewModel.errorMessage!),
-                if (bill == null)
+                  InfoCard(title: '提示', body: _viewModel.errorMessage!),
+                CupertinoButton(
+                  onPressed:
+                      _viewModel.isSaving || _viewModel.isLoading
+                          ? null
+                          : _viewModel.reload,
+                  child: const Text('刷新'),
+                ),
+                if (_viewModel.isLoading)
+                  const InfoCard(title: '正在读取', body: '正在加载现金账。')
+                else if (bill == null)
                   const InfoCard(title: '未找到现金账', body: '请返回列表刷新。')
                 else
                   _CashBillDetailBody(bill: bill, viewModel: _viewModel),
@@ -273,21 +304,30 @@ class _CashBillDetailBody extends StatelessWidget {
         const SizedBox(height: 12),
         if (ordinary) ...[
           CupertinoButton.filled(
-            onPressed: () => context.push('/ledger/cash/${bill.id}/edit'),
+            onPressed:
+                viewModel.isSaving
+                    ? null
+                    : () async {
+                      await context.push('/ledger/cash/${bill.id}/edit');
+                      await viewModel.reload();
+                    },
             child: const Text('编辑'),
           ),
           const SizedBox(height: 8),
           CupertinoButton(
             onPressed:
-                () => _askReason(
-                  context,
-                  title: bill.isVoid ? '恢复原因' : '作废原因',
-                  onSubmit:
-                      (reason) =>
-                          bill.isVoid
-                              ? viewModel.restoreBill(bill, reason)
-                              : viewModel.voidBill(bill, reason),
-                ),
+                viewModel.canChangeStatus(bill)
+                    ? () => _askReason(
+                      context,
+                      viewModel: viewModel,
+                      title: bill.isVoid ? '恢复原因' : '作废原因',
+                      onSubmit:
+                          (reason) =>
+                              bill.isVoid
+                                  ? viewModel.restoreBill(bill, reason)
+                                  : viewModel.voidBill(bill, reason),
+                    )
+                    : null,
             child: Text(bill.isVoid ? '恢复' : '作废'),
           ),
         ] else
@@ -301,119 +341,53 @@ class _CashBillDetailBody extends StatelessWidget {
   }
 }
 
-class _TextFieldRow extends StatelessWidget {
-  const _TextFieldRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.keyboardType,
-  });
-
-  final String label;
-  final String value;
-  final ValueChanged<String> onChanged;
-  final TextInputType? keyboardType;
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoTextField(
-      placeholder: label,
-      controller: TextEditingController(text: value)
-        ..selection = TextSelection.collapsed(offset: value.length),
-      keyboardType: keyboardType,
-      padding: const EdgeInsets.all(14),
-      onChanged: onChanged,
-    );
-  }
-}
-
-class _SelectRow<T> extends StatelessWidget {
-  const _SelectRow({
-    required this.label,
-    required this.value,
-    required this.display,
-    required this.values,
-    required this.onChanged,
-  });
-
-  final String label;
-  final T? value;
-  final String Function(T value) display;
-  final List<T> values;
-  final ValueChanged<T> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: CupertinoButton(
-        color: appColor(
-          context,
-          CupertinoColors.secondarySystemGroupedBackground,
-        ),
-        onPressed:
-            values.isEmpty
-                ? null
-                : () => showCupertinoModalPopup<void>(
-                  context: context,
-                  builder:
-                      (context) => CupertinoActionSheet(
-                        title: Text(label),
-                        actions: [
-                          for (final item in values)
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                onChanged(item);
-                              },
-                              child: Text(display(item)),
-                            ),
-                        ],
-                        cancelButton: CupertinoActionSheetAction(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                      ),
-                ),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '$label：${values.contains(value) ? display(value as T) : '未选择'}',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 Future<void> _askReason(
   BuildContext context, {
   required String title,
-  required Future<void> Function(String reason) onSubmit,
+  required CashLedgerViewModel viewModel,
+  required Future<bool> Function(String reason) onSubmit,
 }) async {
   var reason = '';
   await showCupertinoDialog<void>(
     context: context,
     builder:
-        (context) => CupertinoAlertDialog(
-          title: Text(title),
-          content: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: CupertinoTextField(onChanged: (value) => reason = value),
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            CupertinoDialogAction(
-              onPressed: () async {
-                await onSubmit(reason);
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: const Text('确认'),
-            ),
-          ],
+        (context) => AnimatedBuilder(
+          animation: viewModel,
+          builder:
+              (context, _) => CupertinoAlertDialog(
+                title: Text(title),
+                content: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    children: [
+                      CupertinoTextField(onChanged: (value) => reason = value),
+                      if (viewModel.errorMessage != null)
+                        Text(viewModel.errorMessage!),
+                    ],
+                  ),
+                ),
+                actions: [
+                  CupertinoDialogAction(
+                    onPressed:
+                        viewModel.isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                  CupertinoDialogAction(
+                    onPressed:
+                        viewModel.isSaving
+                            ? null
+                            : () async {
+                              final committed = await onSubmit(reason);
+                              if (committed && context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                    child: const Text('确认'),
+                  ),
+                ],
+              ),
         ),
   );
 }

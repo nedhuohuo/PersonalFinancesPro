@@ -197,7 +197,12 @@ class AppShell extends StatelessWidget {
       color: background,
       child: Column(
         children: [
-          Expanded(child: branch),
+          Expanded(
+            child: Provider<AppTab>.value(
+              value: AppTab.values[navigationShell.currentIndex],
+              child: branch,
+            ),
+          ),
           if (!keyboardVisible)
             CupertinoTabBar(
               currentIndex: navigationShell.currentIndex,

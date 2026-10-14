@@ -34,7 +34,7 @@ final class CashLedgerViewModel extends ChangeNotifier {
 
   String startDateText = '';
   String endDateText = '';
-  int? filterShopId;
+  BusinessScope? filterScope;
   int? filterCategoryId;
   int? filterPartyId;
   String noteQueryText = '';
@@ -50,6 +50,10 @@ final class CashLedgerViewModel extends ChangeNotifier {
   int? partyId;
   String noteText = '';
   bool _currentFormCommitted = false;
+  final Set<int> _statusRefreshRequired = {};
+
+  bool canChangeStatus(CashBill bill) =>
+      !isSaving && !isLoading && !_statusRefreshRequired.contains(bill.id);
 
   bool get canSubmit => !isSaving && !_currentFormCommitted;
 
@@ -74,6 +78,7 @@ final class CashLedgerViewModel extends ChangeNotifier {
     try {
       await _reloadCatalogs();
       bills = await _cashBillRepository.listCashBills(_filter());
+      _statusRefreshRequired.clear();
     } catch (error) {
       errorMessage = error.toString();
     } finally {
@@ -125,13 +130,14 @@ final class CashLedgerViewModel extends ChangeNotifier {
         )) {
       categoryId = null;
     }
-    _currentFormCommitted = false;
     _notify();
   }
 
-  Future<void> saveFromForm() => saveCashBill(_draftFromForm());
+  Future<void> saveFromForm() => _saveCashBill(_draftFromForm);
 
-  Future<void> saveCashBill(CashBillDraft draft) async {
+  Future<void> saveCashBill(CashBillDraft draft) => _saveCashBill(() => draft);
+
+  Future<void> _saveCashBill(CashBillDraft Function() buildDraft) async {
     if (isSaving) return;
     if (_currentFormCommitted) {
       lastSaveCommitted = true;
@@ -144,6 +150,7 @@ final class CashLedgerViewModel extends ChangeNotifier {
     errorMessage = null;
     _notify();
     try {
+      final draft = buildDraft();
       if (editingBillId == null) {
         await _cashBillRepository.createCashBill(draft);
       } else {
@@ -154,11 +161,7 @@ final class CashLedgerViewModel extends ChangeNotifier {
       }
       _currentFormCommitted = true;
       lastSaveCommitted = true;
-      try {
-        await reload();
-      } catch (_) {
-        // reload() keeps its own error state; this catch is only defensive.
-      }
+      await reload();
       if (errorMessage != null) {
         errorMessage = '已保存，但刷新失败：$errorMessage';
       }
@@ -171,26 +174,55 @@ final class CashLedgerViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> voidBill(CashBill bill, String reason) async {
-    final trimmed = reason.trim();
-    if (trimmed.isEmpty) {
-      errorMessage = '请填写作废原因';
-      _notify();
-      return;
-    }
-    await _cashBillRepository.voidCashBill(bill.id, reason: trimmed);
-    await reload();
-  }
+  /// Returns true only once the status mutation committed, even if refresh failed.
+  Future<bool> voidBill(CashBill bill, String reason) =>
+      _changeStatus(bill, reason, makeVoid: true);
 
-  Future<void> restoreBill(CashBill bill, String reason) async {
+  Future<bool> restoreBill(CashBill bill, String reason) =>
+      _changeStatus(bill, reason, makeVoid: false);
+
+  Future<bool> _changeStatus(
+    CashBill bill,
+    String reason, {
+    required bool makeVoid,
+  }) async {
+    if (isSaving) return false;
+    if (bill.isVoid == makeVoid ||
+        _statusRefreshRequired.contains(bill.id) ||
+        billById(bill.id)?.isVoid != bill.isVoid) {
+      errorMessage = '状态已变更，请刷新；不会重复提交。';
+      _notify();
+      return false;
+    }
+    final action = makeVoid ? '作废' : '恢复';
     final trimmed = reason.trim();
     if (trimmed.isEmpty) {
-      errorMessage = '请填写恢复原因';
+      errorMessage = '请填写$action原因';
       _notify();
-      return;
+      return false;
     }
-    await _cashBillRepository.restoreCashBill(bill.id, reason: trimmed);
-    await reload();
+    isSaving = true;
+    errorMessage = null;
+    _notify();
+    try {
+      if (makeVoid) {
+        await _cashBillRepository.voidCashBill(bill.id, reason: trimmed);
+      } else {
+        await _cashBillRepository.restoreCashBill(bill.id, reason: trimmed);
+      }
+      _statusRefreshRequired.add(bill.id);
+      await reload();
+      if (errorMessage != null) {
+        errorMessage = '已$action，但刷新失败：$errorMessage';
+      }
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      return false;
+    } finally {
+      isSaving = false;
+      _notify();
+    }
   }
 
   CashBill? billById(int id) {
@@ -230,7 +262,7 @@ final class CashLedgerViewModel extends ChangeNotifier {
   CashBillFilter _filter() => CashBillFilter(
     startDate: _optionalDate(startDateText),
     endDate: _optionalDate(endDateText),
-    scope: filterShopId == null ? null : BusinessScope.shop(filterShopId),
+    scope: filterScope,
     categoryId: filterCategoryId,
     partyId: filterPartyId,
     noteQuery: noteQueryText.trim().isEmpty ? null : noteQueryText.trim(),
@@ -238,13 +270,10 @@ final class CashLedgerViewModel extends ChangeNotifier {
   );
 
   CashBillDraft _draftFromForm() {
-    final selectedCategoryId =
-        categoryId ??
-        (activeDirectionCategories.isEmpty
-            ? 1
-            : activeDirectionCategories.first.id);
-    final selectedAccountId =
-        accountId ?? (activeAccounts.isEmpty ? 1 : activeAccounts.first.id);
+    final selectedCategoryId = categoryId;
+    final selectedAccountId = accountId;
+    if (selectedCategoryId == null) throw const FormatException('请选择分类');
+    if (selectedAccountId == null) throw const FormatException('请选择账户');
     return CashBillDraft(
       businessDate: LocalDate.parse(businessDateText.trim()),
       direction: direction,

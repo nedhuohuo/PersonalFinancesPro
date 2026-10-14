@@ -17,6 +17,7 @@ class LedgerPage extends StatefulWidget {
 
 class _LedgerPageState extends State<LedgerPage> {
   CashLedgerViewModel? _viewModel;
+  bool _wasActive = false;
 
   @override
   void didChangeDependencies() {
@@ -24,7 +25,10 @@ class _LedgerPageState extends State<LedgerPage> {
     _viewModel ??= CashLedgerViewModel(
       cashBillRepository: context.read<CashBillRepository>(),
       catalogRepository: context.read<CatalogRepository>(),
-    )..reload();
+    );
+    final active = context.watch<AppTab?>() == AppTab.ledger;
+    if (active && !_wasActive) _viewModel!.reload();
+    _wasActive = active;
   }
 
   @override
@@ -47,10 +51,8 @@ class _LedgerPageState extends State<LedgerPage> {
                 CupertinoButton.filled(
                   key: const ValueKey('new-cash-bill-button'),
                   onPressed: () async {
-                    final changed = await context.push<bool>(
-                      '/ledger/cash/new',
-                    );
-                    if (changed == true) await viewModel.reload();
+                    await context.push<bool>('/ledger/cash/new');
+                    await viewModel.reload();
                   },
                   child: const Text('新增现金账'),
                 ),
@@ -87,24 +89,66 @@ class _FilterCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: CupertinoTextField(
-                  placeholder: '开始日期',
+                child: LedgerTextField(
+                  label: '开始日期',
+                  value: viewModel.startDateText,
                   onChanged: (value) => viewModel.startDateText = value,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: CupertinoTextField(
-                  placeholder: '结束日期',
+                child: LedgerTextField(
+                  label: '结束日期',
+                  value: viewModel.endDateText,
                   onChanged: (value) => viewModel.endDateText = value,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          CupertinoTextField(
-            placeholder: '备注包含',
+          LedgerTextField(
+            label: '备注包含',
+            value: viewModel.noteQueryText,
             onChanged: (value) => viewModel.noteQueryText = value,
+          ),
+          LedgerSelectionRow<BusinessScope?>(
+            label: '店铺筛选',
+            value: viewModel.filterScope,
+            display:
+                (scope) =>
+                    scope == null ? '全部' : viewModel.shopName(scope.shopId),
+            values: [
+              null,
+              const BusinessScope.public(),
+              ...viewModel.shops.map((shop) => BusinessScope.shop(shop.id)),
+            ],
+            onChanged: (value) {
+              viewModel.filterScope = value;
+              viewModel.applyFilters();
+            },
+          ),
+          LedgerSelectionRow<int?>(
+            label: '分类筛选',
+            value: viewModel.filterCategoryId,
+            display: (id) => id == null ? '全部' : viewModel.categoryName(id),
+            values: [
+              null,
+              ...viewModel.categories.map((category) => category.id),
+            ],
+            onChanged: (value) {
+              viewModel.filterCategoryId = value;
+              viewModel.applyFilters();
+            },
+          ),
+          LedgerSelectionRow<int?>(
+            label: '往来方筛选',
+            value: viewModel.filterPartyId,
+            display: (id) => id == null ? '全部' : viewModel.partyName(id)!,
+            values: [null, ...viewModel.parties.map((party) => party.id)],
+            onChanged: (value) {
+              viewModel.filterPartyId = value;
+              viewModel.applyFilters();
+            },
           ),
           const SizedBox(height: 8),
           Row(

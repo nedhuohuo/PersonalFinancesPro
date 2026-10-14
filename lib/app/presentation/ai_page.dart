@@ -17,11 +17,11 @@ class AiPage extends StatelessWidget {
                 paddedSliver([
                   const _MessageBubble(
                     title: 'AI功能尚未接入',
-                    body: '本地账本和 AI 服务都还没有连接。这里先保留消息布局，不生成草稿、不确认入账，也不接收密钥。',
+                    body: '本地账本已连接；AI 服务尚未接入。这里不生成草稿、不确认入账，也不接收密钥。',
                   ),
                   InfoCard(
                     title: '待确认草稿',
-                    body: '没有可确认的账目。确认入账会在本地持久化存在后启用。',
+                    body: '没有可确认的 AI 草稿。AI 草稿与确认流程尚未接入。',
                     child: CupertinoButton.filled(
                       key: const ValueKey('ai-confirm-button'),
                       minSize: 48,

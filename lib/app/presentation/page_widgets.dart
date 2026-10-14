@@ -104,3 +104,115 @@ SliverSafeArea paddedSliver(List<Widget> children) {
     ),
   );
 }
+
+// Branch visibility drives read refresh on tab return, without resetting input.
+enum AppTab { home, ledger, ai, settings }
+
+class LedgerTextField extends StatefulWidget {
+  LedgerTextField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.keyboardType,
+  }) : super(key: ValueKey(label));
+
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final TextInputType? keyboardType;
+
+  @override
+  State<LedgerTextField> createState() => _LedgerTextFieldState();
+}
+
+class _LedgerTextFieldState extends State<LedgerTextField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+
+  @override
+  void didUpdateWidget(LedgerTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_controller.text != widget.value) {
+      _controller.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoTextField(
+    placeholder: widget.label,
+    controller: _controller,
+    keyboardType: widget.keyboardType,
+    padding: const EdgeInsets.all(14),
+    onChanged: widget.onChanged,
+  );
+}
+
+class LedgerSelectionRow<T> extends StatelessWidget {
+  const LedgerSelectionRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.display,
+    required this.values,
+    required this.onChanged,
+  });
+
+  final String label;
+  final T? value;
+  final String Function(T value) display;
+  final List<T> values;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: CupertinoButton(
+        color: appColor(
+          context,
+          CupertinoColors.secondarySystemGroupedBackground,
+        ),
+        onPressed:
+            values.isEmpty
+                ? null
+                : () => showCupertinoModalPopup<void>(
+                  context: context,
+                  builder:
+                      (context) => CupertinoActionSheet(
+                        title: Text(label),
+                        actions: [
+                          for (final item in values)
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                onChanged(item);
+                              },
+                              child: Text(display(item)),
+                            ),
+                        ],
+                        cancelButton: CupertinoActionSheetAction(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('取消'),
+                        ),
+                      ),
+                ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '$label：${value != null || values.contains(value) ? display(value as T) : '未选择'}',
+          ),
+        ),
+      ),
+    );
+  }
+}

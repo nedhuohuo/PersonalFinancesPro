@@ -392,8 +392,11 @@ final class RecordingCashBillRepository implements CashBillRepository {
   }) : refreshError = refreshError ?? Exception('刷新失败'),
        _bills = List.of(bills);
 
-  final bool refreshThrows;
-  final bool commitThrows;
+  bool refreshThrows;
+  bool commitThrows;
+  Object? statusError;
+  Future<void>? statusGate;
+  CashBillFilter? lastFilter;
   final Object refreshError;
   final List<CashBill> _bills;
   int _nextId = 1;
@@ -428,19 +431,42 @@ final class RecordingCashBillRepository implements CashBillRepository {
   @override
   Future<void> voidCashBill(int id, {required String reason}) async {
     voidCashBillCalls++;
+    await statusGate;
+    if (statusError != null) throw statusError!;
     _setVoid(id, true);
   }
 
   @override
   Future<void> restoreCashBill(int id, {required String reason}) async {
     restoreCashBillCalls++;
+    await statusGate;
+    if (statusError != null) throw statusError!;
     _setVoid(id, false);
   }
 
   @override
   Future<List<CashBill>> listCashBills(CashBillFilter filter) async {
+    lastFilter = filter;
     if (refreshThrows) throw refreshError;
-    return _bills.where((bill) => filter.includeVoid || !bill.isVoid).toList();
+    return _bills
+        .where(
+          (bill) =>
+              (filter.includeVoid || !bill.isVoid) &&
+              (filter.startDate == null ||
+                  bill.businessDate.value.compareTo(filter.startDate!.value) >=
+                      0) &&
+              (filter.endDate == null ||
+                  bill.businessDate.value.compareTo(filter.endDate!.value) <=
+                      0) &&
+              (filter.scope == null ||
+                  bill.scope.shopId == filter.scope!.shopId) &&
+              (filter.categoryId == null ||
+                  bill.categoryId == filter.categoryId) &&
+              (filter.partyId == null || bill.partyId == filter.partyId) &&
+              (filter.noteQuery == null ||
+                  bill.note.contains(filter.noteQuery!)),
+        )
+        .toList();
   }
 
   CashBill _billFromDraft(int id, CashBillDraft draft) {

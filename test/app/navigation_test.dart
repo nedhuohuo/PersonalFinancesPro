@@ -53,6 +53,8 @@ void main() {
     expect(find.text('新增现金账'), findsOneWidget);
     await tapTab(tester, 'AI记账');
     expect(find.text('AI功能尚未接入'), findsOneWidget);
+    expect(find.textContaining('本地账本已连接'), findsOneWidget);
+    expect(find.textContaining('本地持久化存在后启用'), findsNothing);
     await tapTab(tester, '设置');
     expect(find.text('数据保存在本机'), findsOneWidget);
   });
@@ -131,6 +133,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(cashBills.createCashBillCalls, 1);
+    await tester.scrollUntilVisible(
+      find.textContaining('12.34'),
+      150,
+      scrollable:
+          find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .last,
+    );
+    await tester.pumpAndSettle();
     expect(find.textContaining('12.34'), findsWidgets);
   });
 
@@ -222,6 +237,137 @@ void main() {
       await tapTab(tester, '首页');
       expect(find.text('平台外经营账本'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'cash save and reason confirm remain reachable across width scale safe-area keyboard matrix',
+    (tester) async {
+      for (final width in [320.0, 390.0, 430.0]) {
+        await setSurface(
+          tester,
+          width: width,
+          textScale: 1.5,
+          padding: const FakeViewPadding(top: 54, bottom: 34),
+        );
+        final cash = RecordingCashBillRepository();
+        await pumpLedgerAppWithRepositories(
+          tester,
+          FakeAppRepositories(
+            catalog: RecordingCatalogRepository(),
+            cashBills: cash,
+            ledger: RecordingLedgerRepository(),
+            dashboard: RecordingDashboardRepository(cashBills: cash),
+          ),
+        );
+        await tapTab(tester, '账本');
+        await tester.tap(find.text('新增现金账'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(CupertinoTextField, '金额'),
+          '12.34',
+        );
+        tester.view.padding = const FakeViewPadding(top: 54);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        final save = find.byKey(const ValueKey('cash-save-button'));
+        await tester.scrollUntilVisible(
+          save,
+          150,
+          scrollable:
+              find
+                  .byWidgetPredicate(
+                    (widget) =>
+                        widget is Scrollable &&
+                        widget.axisDirection == AxisDirection.down,
+                  )
+                  .last,
+        );
+        await tester.pumpAndSettle();
+        final saveRect = tester.getRect(save);
+        expect(saveRect.bottom, lessThanOrEqualTo(844 - 300));
+        expect(saveRect.top, greaterThanOrEqualTo(54));
+        expect(find.byType(CupertinoTabBar), findsNothing);
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(cash.createCashBillCalls, 1);
+        tester.view.padding = const FakeViewPadding(top: 54, bottom: 34);
+        tester.view.viewInsets = FakeViewPadding.zero;
+        await tester.pumpAndSettle();
+        final bill = find.text('普通现金账');
+        await tester.scrollUntilVisible(
+          bill,
+          160,
+          scrollable:
+              find
+                  .byWidgetPredicate(
+                    (widget) =>
+                        widget is Scrollable &&
+                        widget.axisDirection == AxisDirection.down,
+                  )
+                  .last,
+        );
+        await tester.ensureVisible(bill);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(bill).bottom,
+          lessThanOrEqualTo(tester.getTopLeft(find.byType(CupertinoTabBar)).dy),
+        );
+        await tester.tap(bill);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('作废'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(CupertinoTextField), '矩阵作废');
+        tester.view.padding = const FakeViewPadding(top: 54);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('确认'));
+        final confirmRect = tester.getRect(find.text('确认'));
+        expect(confirmRect.bottom, lessThanOrEqualTo(844 - 300));
+        expect(confirmRect.top, greaterThanOrEqualTo(54));
+        await tester.tap(find.text('确认'));
+        await tester.pumpAndSettle();
+        expect(cash.voidCashBillCalls, 1);
+        expect(tester.takeException(), isNull);
+        tester.view.viewInsets = FakeViewPadding.zero;
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+  testWidgets(
+    'cash first field sits below actual navigation bar at zero and large top insets',
+    (tester) async {
+      for (final top in [0.0, 64.0]) {
+        await setSurface(
+          tester,
+          textScale: 1.5,
+          padding: FakeViewPadding(top: top, bottom: 34),
+        );
+        await pumpLedgerAppWithRepositories(
+          tester,
+          FakeAppRepositories.empty(),
+        );
+        await tapTab(tester, '账本');
+        await tester.tap(find.text('新增现金账'));
+        await tester.pumpAndSettle();
+        final dateField = find.byWidgetPredicate(
+          (widget) =>
+              widget is CupertinoTextField &&
+              widget.placeholder == '日期 YYYY-MM-DD',
+        );
+        final navRect = tester.getRect(find.byType(CupertinoNavigationBar));
+        expect(
+          tester.getTopLeft(dateField).dy,
+          greaterThanOrEqualTo(navRect.bottom),
+        );
+        expect(
+          tester.getTopLeft(dateField).dy,
+          lessThanOrEqualTo(navRect.bottom + 16),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      }
     },
   );
 }

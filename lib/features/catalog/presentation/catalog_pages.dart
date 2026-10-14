@@ -49,6 +49,7 @@ class _CatalogPageState extends State<CatalogPage> {
           (context, _) => CupertinoPageScaffold(
             navigationBar: CupertinoNavigationBar(
               middle: Text(catalogKindTitle(widget.kind)),
+              transitionBetweenRoutes: false,
               trailing: CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: () => _create(context),
@@ -225,31 +226,48 @@ Future<String?> _askName(
   BuildContext context,
   String title, {
   String initial = '',
-}) async {
-  var value = initial;
-  return showCupertinoDialog<String>(
-    context: context,
-    builder:
-        (context) => CupertinoAlertDialog(
-          title: Text(title),
-          content: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: CupertinoTextField(
-              controller: TextEditingController(text: initial),
-              onChanged: (text) => value = text,
-            ),
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(value),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
+}) => showCupertinoDialog<String>(
+  context: context,
+  builder: (_) => _CatalogNameDialog(title: title, initial: initial),
+);
+
+class _CatalogNameDialog extends StatefulWidget {
+  const _CatalogNameDialog({required this.title, required this.initial});
+  final String title;
+  final String initial;
+
+  @override
+  State<_CatalogNameDialog> createState() => _CatalogNameDialogState();
+}
+
+class _CatalogNameDialogState extends State<_CatalogNameDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoAlertDialog(
+    title: Text(widget.title),
+    content: Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: CupertinoTextField(controller: _controller),
+    ),
+    actions: [
+      CupertinoDialogAction(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('取消'),
+      ),
+      CupertinoDialogAction(
+        onPressed: () => Navigator.of(context).pop(_controller.text),
+        child: const Text('保存'),
+      ),
+    ],
   );
 }
 

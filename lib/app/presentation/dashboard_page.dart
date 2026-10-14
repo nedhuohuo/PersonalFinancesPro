@@ -15,13 +15,17 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   DashboardViewModel? _viewModel;
+  bool _wasActive = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _viewModel ??= DashboardViewModel(
       dashboardRepository: context.read<DashboardRepository>(),
-    )..reload();
+    );
+    final active = context.watch<AppTab?>() == AppTab.home;
+    if (active && !_wasActive) _viewModel!.reload();
+    _wasActive = active;
   }
 
   @override
