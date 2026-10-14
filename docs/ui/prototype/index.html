@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>网店账本 · OpenDesign UI 原型</title>
+  <style>
+    :root { --bg:#f8fafd; --surface:#fff; --fg:#202124; --muted:#5f6368; --border:#dadce0; --accent:#1a73e8; --on-accent:#fff; --tint:#e8f0fe; --income:#188038; --expense:#d93025; }
+    :root[data-theme="dark"] { --bg:#101318; --surface:#191d24; --fg:#e4e7ec; --muted:#aeb5c2; --border:#424750; --accent:#a8c7fa; --on-accent:#062e6f; --tint:#1c3154; --income:#81c995; --expense:#f28b82; }
+    * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input,select,textarea { font:inherit; color:inherit; }
+    button { cursor:pointer; border:0; background:transparent; min-height:48px; padding:10px 14px; border-radius:8px; }
+    button:disabled,input:disabled { cursor:not-allowed; opacity:.55; }
+    button:hover:not(:disabled) { background:var(--tint); }
+    :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+    input,select,textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:12px; min-height:48px; background:var(--surface); }
+    textarea { resize:vertical; min-height:112px; }
+    label { display:block; font-weight:500; margin-bottom:6px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:24px; line-height:1.25; letter-spacing:-.5px; }
+    h2 { font-size:20px; }
+    h3 { font-size:16px; }
+    .app { max-width:440px; min-height:100dvh; margin:auto; background:var(--bg); }
+    .review { padding:12px 16px; border-bottom:1px dashed var(--border); color:var(--muted); font-size:12px; }
+    .review-summary { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .review-summary button { min-width:48px; padding:8px; }
+    .review details { margin-top:4px; }
+    .review summary { cursor:pointer; min-height:32px; }
+    .review select { margin:4px 0; }
+    header { padding:20px 16px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    header select { width:128px; flex-shrink:0; padding:10px 8px; }
+    .sub { color:var(--muted); font-size:12px; }
+    .subtitle { margin-top:4px; }
+    main { padding:8px 16px 150px; }
+    .stack > * + * { margin-top:16px; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+    .cash-summary { background:var(--tint); border:0; }
+    .money { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .big-money { font-size:32px; font-weight:650; line-height:1.2; margin:12px 0 20px; letter-spacing:-1px; overflow-wrap:anywhere; white-space:normal; }
+    .money small { font-size:14px; margin-right:4px; font-weight:400; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .split strong { display:block; margin-top:4px; font-size:18px; }
+    .income { color:var(--income); }
+    .expense { color:var(--expense); }
+    .tag { font-size:12px; color:var(--muted); padding:3px 8px; border:1px solid var(--border); border-radius:100px; white-space:nowrap; }
+    .note { color:var(--muted); font-size:12px; line-height:1.6; }
+    .quick { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .quick button { border:1px solid var(--border); background:var(--surface); text-align:left; padding:12px 10px; min-height:76px; font-size:13px; }
+    .quick span { display:block; color:var(--muted); font-size:11px; margin-top:4px; }
+    .list { border:1px solid var(--border); background:var(--surface); border-radius:12px; overflow:hidden; }
+    .entry-row { width:100%; border-radius:0; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:14px 12px; text-align:left; }
+    .entry-row + .entry-row { border-top:1px solid var(--border); }
+    .entry-title { display:block; font-size:14px; font-weight:500; overflow-wrap:anywhere; }
+    .entry-info { min-width:0; }
+    .entry-row .money { font-weight:600; font-size:14px; flex-shrink:0; }
+    .primary { background:var(--accent); color:var(--on-accent); font-weight:600; }
+    .primary:hover:not(:disabled) { background:var(--accent); filter:brightness(.94); }
+    .secondary { border:1px solid var(--border); background:var(--surface); }
+    .full { width:100%; }
+    .tabs { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:100px; overflow:hidden; }
+    .tabs button { flex:1; padding:10px 4px; border-radius:0; }
+    .tabs button[aria-pressed="true"] { background:var(--tint); color:var(--accent); font-weight:600; }
+    .empty { text-align:center; padding:40px 16px; }
+    .empty h3 { margin-bottom:8px; }
+    .banner { border-left:3px solid var(--accent); background:var(--tint); padding:12px; border-radius:8px; }
+    .error { color:var(--expense); }
+    .receipt { border-top:1px solid var(--border); margin-top:12px; padding-top:12px; }
+    .receipt dl,.detail-grid { display:grid; grid-template-columns:auto 1fr; gap:8px 12px; margin:12px 0; }
+    dt { color:var(--muted); }
+    dd { margin:0; text-align:right; overflow-wrap:anywhere; }
+    .status { border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--surface); }
+    .spinner { display:inline-block; width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; margin-right:8px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    nav { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:min(440px,100%); display:grid; grid-template-columns:repeat(4,1fr); background:var(--surface); border-top:1px solid var(--border); padding:8px 8px max(8px,env(safe-area-inset-bottom)); z-index:5; }
+    nav button { font-size:13px; min-height:56px; }
+    nav button[aria-current="page"] { background:var(--tint); color:var(--accent); font-weight:600; }
+    .floating { position:fixed; bottom:92px; right:max(16px,calc((100vw - 440px)/2 + 16px)); box-shadow:0 3px 8px #0002; z-index:4; }
+    .toast { position:fixed; bottom:154px; left:50%; transform:translateX(-50%); width:min(360px,calc(100% - 32px)); padding:12px 16px; border:1px solid var(--border); background:var(--surface); border-radius:12px; z-index:9; pointer-events:none; }
+    dialog { background:var(--surface); color:var(--fg); border:1px solid var(--border); border-radius:16px; padding:20px; width:min(400px,calc(100% - 32px)); max-height:calc(100dvh - 48px); overflow:auto; }
+    dialog::backdrop { background:#10131888; }
+    dialog form > * + * { margin-top:12px; }
+    .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .actions { display:flex; gap:8px; justify-content:flex-end; }
+    #entry-amount { font-size:24px; font-variant-numeric:tabular-nums; }
+    .settings-section > * + * { margin-top:12px; }
+    .switch-row input { width:20px; min-height:20px; }
+    .settings-actions { display:grid; gap:8px; }
+    @media(min-width:700px) { .app { margin:32px auto; border:1px solid var(--border); border-radius:20px; overflow:hidden; } .review { background:var(--surface); } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="review">
+    <div class="review-summary"><span>OpenDesign · 示例数据 / 非正式 App</span><button id="theme-toggle" aria-label="切换明暗主题">明 / 暗</button></div>
+    <details><summary>设计评审：切换页面状态</summary><label for="preview-state">预览状态</label><select id="preview-state"><option value="normal">正常数据</option><option value="empty">空账本</option><option value="loading">读取中</option><option value="error">读取失败</option></select></details>
+  </div>
+  <header><div><h1>网店账本</h1><p class="sub subtitle">只记平台外 · 多店经营</p></div><select id="shop-filter" aria-label="选择店铺"><option value="all">全部店铺</option><option value="shop1">一店</option><option value="shop2">二店</option><option value="public">公共经营</option></select></header>
+  <main>
+    <div id="view-loading" class="status" role="status" hidden><span class="spinner" aria-hidden="true"></span>示例：正在读取本地账本</div>
+    <div id="view-error" class="status" role="alert" hidden><p>示例：账本读取失败，原数据未删除。</p><button id="retry-view" class="secondary full">重试</button></div>
+    <section id="home" class="stack" aria-label="首页">
+      <div class="row"><p class="sub">2026年10月 · 示例期间</p><span class="tag">本地优先</span></div>
+      <div class="card cash-summary"><p>平台外现金净额</p><div class="money big-money"><small>¥</small><span data-stat="net">0.00</span></div><div class="split"><div><span class="sub">现金收入</span><strong class="money income" data-stat="income">0.00</strong></div><div><span class="sub">现金支出</span><strong class="money expense" data-stat="expense">0.00</strong></div></div></div>
+      <p class="note">不含平台订单与内部扣费。现金净额不是店铺利润。</p>
+      <button id="show-purchases" class="card row full" style="text-align:left"><div><p class="sub">厂家待付款 · 示例</p><h2 class="money" id="pending-amount">¥1,680.00</h2></div><span class="sub">采购单 →</span></button>
+      <div class="quick"><button id="quick-purchase">采购付款<span>应付与实付分开</span></button><button id="quick-resale">问题件收入<span>其他渠道出售</span></button><button id="quick-shipping">快递预付<span>充值不重复计费</span></button></div>
+      <div class="row"><h3>最近现金账</h3><button data-page="ledger" class="sub">全部 →</button></div>
+      <div id="recent-list" class="list"></div>
+    </section>
+    <section id="ledger" class="stack" aria-label="账本" hidden>
+      <h2>经营账本</h2>
+      <div class="tabs" aria-label="业务视图"><button data-ledger-tab="cash" aria-pressed="true">现金账</button><button data-ledger-tab="purchase" aria-pressed="false">采购单</button><button data-ledger-tab="shipping" aria-pressed="false">快递预付</button></div>
+      <div id="cash-view" class="stack"><div class="row"><p id="ledger-count" class="sub">0笔现金记录</p><select id="kind-filter" aria-label="收支筛选" style="width:132px"><option value="all">全部收支</option><option value="income">仅收入</option><option value="expense">仅支出</option></select></div><div id="ledger-list" class="list"></div></div>
+      <div id="purchase-view" class="stack" hidden><p class="note">采购应付不直接计入现金支出；实际付款才计入。</p><div id="purchase-example" class="card"><div class="row"><h3>宏达厂 · 200件上衣</h3><span class="tag">部分付款</span></div><p class="sub subtitle">一店 · 2026-10-13 · 示例采购</p><dl class="detail-grid"><dt>采购应付</dt><dd class="money">¥3,680.00</dd><dt>已付货款</dt><dd class="money">¥2,000.00</dd><dt>待付货款</dt><dd class="money expense">¥1,680.00</dd></dl><button class="secondary full" disabled>登记付款 · 正式 App 提供</button></div><div id="purchase-empty" class="empty" hidden><h3>没有匹配的采购单</h3><p class="note">示例采购属于一店。</p></div></div>
+      <div id="shipping-view" class="stack" hidden><p class="note">充值计现金支出；消耗只减少预付余额。</p><div id="shipping-example" class="card"><div class="row"><h3>中通快递 · 二店</h3><span class="tag">手工记录</span></div><p class="sub subtitle">账本记录余额，非服务商实时余额</p><div class="money big-money"><small>¥</small>960.00</div><dl class="detail-grid"><dt>期初记录余额</dt><dd>¥200.00</dd><dt>本期充值</dt><dd>¥1,000.00</dd><dt>本期消耗</dt><dd>¥240.00</dd></dl><button class="secondary full" disabled>充值 / 消耗 · 正式 App 提供</button></div><div id="shipping-empty" class="empty" hidden><h3>没有匹配的快递账户</h3><p class="note">示例快递账户属于二店。</p></div></div>
+    </section>
+    <section id="ai" class="stack" aria-label="AI记账" hidden>
+      <div class="row"><h2>说一句，记清楚</h2><span class="tag">草稿确认</span></div>
+      <div class="banner note">本原型只演示预置例句，不连接 DeepSeek。正式 App 配置 Key 并取得发送同意后，才调用 AI；账目始终需要确认。</div>
+      <button id="use-example" class="secondary full" style="text-align:left">试试：问题件卖给老王，收到360元，运费20元</button>
+      <div><label for="ai-input">记账内容</label><textarea id="ai-input" placeholder="输入平台外的经营收支…"></textarea></div>
+      <p id="ai-message" class="note" role="status"></p><button id="generate-draft" class="primary full">生成示例草稿</button>
+      <div id="draft-card" class="card" hidden><div class="row"><h3>待确认 · 2笔关联账目</h3><span class="tag">一店</span></div><div class="receipt"><div class="row"><span>问题件二次销售</span><strong class="money income">+360.00</strong></div><p class="sub subtitle">老王 · 12件衣服 · 线下尾货 · 微信收款</p></div><div class="receipt"><div class="row"><span>出货运费</span><strong class="money expense">−20.00</strong></div><p class="sub subtitle">支付宝付款，与销售收入分开记录</p></div><div class="receipt"><div class="row"><span>本次净回收</span><strong class="money">¥340.00</strong></div><p class="note subtitle">不是利润，未扣商品原始成本。</p></div><p class="note" style="margin:16px 0">这是固定的演示草稿，当前原型不能编辑复杂业务。</p><button id="confirm-draft" class="primary full">确认，写入演示账本</button><p id="draft-status" class="note subtitle" role="status"></p></div>
+    </section>
+    <section id="settings" class="stack" aria-label="设置" hidden>
+      <h2>设置与数据</h2><div class="card settings-section"><h3>AI 服务 · 正式版配置预览</h3><p class="note">本原型不接收、保存或发送密钥。以下配置不可编辑。</p><div><label for="provider">服务商</label><input id="provider" value="DeepSeek" disabled></div><div><label for="base-url">HTTPS Base URL</label><input id="base-url" value="https://api.deepseek.com" disabled></div><div><label for="model-name">模型</label><input id="model-name" value="deepseek-chat" disabled></div><div><label for="api-key">API Key</label><input id="api-key" type="password" placeholder="仅正式 App 可设置" autocomplete="off" disabled></div><button class="secondary full" disabled>测试连接 · 正式 App 提供</button><p class="note">正式版使用 Keychain / Keystore 安全存储，Key 不随备份导出；不配置 AI 也能手动记账。</p></div>
+      <div class="card settings-section"><h3>账本与资料</h3><p class="note">店铺、账户、厂家、分类和渠道管理将在 Flutter 实现，不在原型中修改真实资料。</p><div class="settings-actions"><button class="secondary" disabled>完整备份 / 恢复 · 正式 App 提供</button><button class="secondary" disabled>CSV 导出 · 正式 App 提供</button></div><p class="note">备份会包含经营数据，请自行保管。恢复替换当前账本，卸载会丢失未备份数据。</p></div>
+      <div class="card settings-section"><h3>关于项目</h3><p class="note">Flutter · Android / iOS · Clean 架构<br>本地优先，无账号及自动跨端同步<br>源码采用 MIT；网页原型不是正式应用。</p></div>
+    </section>
+  </main>
+</div>
+<button id="manual-open" class="primary floating">＋ 记一笔</button>
+<nav aria-label="主导航"><button data-page="home" aria-current="page">首页</button><button data-page="ledger">账本</button><button data-page="ai">AI记账</button><button data-page="settings">设置</button></nav>
+<div id="toast" class="toast" role="status" hidden></div>
+<dialog id="entry-dialog" aria-labelledby="entry-heading"><form id="entry-form" novalidate><h2 id="entry-heading">手动记一笔</h2><p class="note">仅演示普通现金收支，记录只在内存中；刷新会重置。</p><div class="field-row"><div><label for="entry-kind">收支方向</label><select id="entry-kind"><option value="expense">支出</option><option value="income">收入</option></select></div><div><label for="entry-shop">归属店铺</label><select id="entry-shop"><option value="shop1">一店</option><option value="shop2">二店</option><option value="public">公共经营</option></select></div></div><div><label for="entry-amount">金额（元）</label><input id="entry-amount" inputmode="decimal" placeholder="0.00" required></div><div><label for="entry-title">交易说明</label><input id="entry-title" placeholder="例如：纸箱与包装袋" maxlength="120" required></div><div class="field-row"><div><label for="entry-category">分类</label><select id="entry-category"><option>其他经营</option><option>配件包装</option><option>问题件销售</option><option>出货运费</option></select></div><div><label for="entry-account">收付款账户</label><select id="entry-account"><option>微信</option><option>支付宝</option><option>银行卡</option></select></div></div><p id="form-error" class="error" role="alert"></p><div class="actions"><button id="cancel-entry" type="button" class="secondary">取消</button><button id="save-entry" type="submit" class="primary">保存到演示账本</button></div></form></dialog>
+<dialog id="detail-dialog" aria-labelledby="detail-heading"><h2 id="detail-heading">账单详情</h2><dl id="detail-fields" class="detail-grid"></dl><p class="note">原型仅展示详情。正式版提供编辑、作废和变更记录。</p><button id="close-detail" class="secondary full" style="margin-top:16px">关闭</button></dialog>
+<script type="module">
+  import { parseAmount, formatMoney, totals, createDemoState, commitDraft } from './prototype-model.mjs';
+  const $ = selector => document.querySelector(selector);
+  const shops = { shop1:'一店', shop2:'二店', public:'公共经营' };
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+  let state = createDemoState();
+  let page = 'home';
+  let ledgerTab = 'cash';
+  let draft;
+  let toastTimer;
+  const entries = () => $('#preview-state').value === 'empty' ? [] : state.entries;
+  const filtered = () => entries().filter(entry => $('#shop-filter').value === 'all' || entry.shopId === $('#shop-filter').value);
+  function notify(text) { $('#toast').textContent = text; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 3500); }
+  function entryRows(records, className = '') {
+    if (!records.length) return '<div class="empty"><h3>还没有匹配的现金账</h3><p class="note">记下第一笔平台外收支，或取消筛选。</p></div>';
+    return records.map(entry => `<button class="entry-row ${className}" data-entry="${escape(entry.id)}"><span class="entry-info"><span class="entry-title">${escape(entry.title)}</span><span class="sub">${escape(shops[entry.shopId])} · ${escape(entry.category)} · ${escape(entry.date)}</span></span><span class="money ${entry.kind}">${entry.kind === 'income' ? '+' : '−'}${formatMoney(entry.cents)}</span></button>`).join('');
+  }
+  function render() {
+    const mode = $('#preview-state').value;
+    const blocked = ['loading','error'].includes(mode);
+    $('#view-loading').hidden = mode !== 'loading'; $('#view-error').hidden = mode !== 'error';
+    for (const name of ['home','ledger','ai','settings']) $(`#${name}`).hidden = name !== page || blocked;
+    $('nav').querySelectorAll('button').forEach(button => { if (button.dataset.page === page) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
+    $('#manual-open').hidden = !['home','ledger'].includes(page) || blocked;
+    const result = totals(entries(), $('#shop-filter').value);
+    for (const [name,value] of Object.entries(result)) $(`[data-stat="${name}"]`).textContent = formatMoney(value);
+    $('#recent-list').innerHTML = entryRows(filtered().slice(0,4));
+    const records = filtered().filter(entry => $('#kind-filter').value === 'all' || entry.kind === $('#kind-filter').value);
+    $('#ledger-list').innerHTML = entryRows(records, 'ledger-row'); $('#ledger-count').textContent = `${records.length}笔现金记录 · 示例`;
+    const purchaseVisible = mode !== 'empty' && ['all','shop1'].includes($('#shop-filter').value);
+    $('#pending-amount').textContent = `¥${purchaseVisible ? '1,680.00' : '0.00'}`;
+    $('#purchase-example').hidden = !purchaseVisible; $('#purchase-empty').hidden = purchaseVisible;
+    const shippingVisible = mode !== 'empty' && ['all','shop2'].includes($('#shop-filter').value);
+    $('#shipping-example').hidden = !shippingVisible; $('#shipping-empty').hidden = shippingVisible;
+    for (const name of ['cash','purchase','shipping']) $(`#${name}-view`).hidden = ledgerTab !== name;
+    document.querySelectorAll('[data-ledger-tab]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.ledgerTab === ledgerTab)));
+  }
+  function navigate(name, tab) { clearTimeout(toastTimer); $('#toast').hidden = true; page = name; if (tab) ledgerTab = tab; render(); window.scrollTo(0,0); }
+  document.querySelectorAll('[data-page]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.page)));
+  document.querySelectorAll('[data-ledger-tab]').forEach(button => button.addEventListener('click', () => { ledgerTab = button.dataset.ledgerTab; render(); }));
+  for (const id of ['shop-filter','kind-filter','preview-state']) $(`#${id}`).addEventListener('change', render);
+  $('#retry-view').addEventListener('click', () => { $('#preview-state').value = 'normal'; render(); });
+  $('#theme-toggle').addEventListener('click', () => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; });
+  for (const id of ['show-purchases','quick-purchase']) $(`#${id}`).addEventListener('click', () => navigate('ledger','purchase'));
+  $('#quick-shipping').addEventListener('click', () => navigate('ledger','shipping'));
+  function openEntry(kind = 'expense') { $('#entry-form').reset(); $('#entry-kind').value = kind; $('#entry-shop').value = $('#shop-filter').value === 'all' ? 'shop1' : $('#shop-filter').value; $('#form-error').textContent = ''; $('#entry-dialog').showModal(); $('#entry-amount').focus(); }
+  $('#manual-open').addEventListener('click', () => openEntry()); $('#quick-resale').addEventListener('click', () => { openEntry('income'); $('#entry-category').value = '问题件销售'; });
+  function cancelEntry(event) { const dirty = $('#entry-title').value.trim() || $('#entry-amount').value.trim(); if (dirty && !confirm('放弃尚未保存的演示输入？')) { event?.preventDefault(); return; } $('#entry-dialog').close(); }
+  $('#cancel-entry').addEventListener('click', cancelEntry); $('#entry-dialog').addEventListener('cancel', cancelEntry);
+  $('#entry-form').addEventListener('submit', event => {
+    event.preventDefault();
+    try {
+      const cents = parseAmount($('#entry-amount').value); const title = $('#entry-title').value.trim(); if (!title) throw new Error('请填写交易说明');
+      const id = crypto.randomUUID();
+      state = commitDraft(state, { id, entries:[{ id, cents, kind:$('#entry-kind').value, shopId:$('#entry-shop').value, title, category:$('#entry-category').value, account:$('#entry-account').value, date:'2026-10-13', source:'手动示例', note:'只保存在原型内存，非真实记账' }] });
+      $('#entry-dialog').close(); $('#preview-state').value = 'normal'; render(); notify('已保存到演示账本，刷新将重置');
+    } catch(error) { $('#form-error').textContent = error.message; }
+  });
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-entry]'); if (!button) return; const entry = state.entries.find(item => item.id === button.dataset.entry); if (!entry) return;
+    $('#detail-fields').innerHTML = [['说明',entry.title],['方向',entry.kind === 'income' ? '收入' : '支出'],['金额',`¥${formatMoney(entry.cents)}`],['店铺',shops[entry.shopId]],['分类',entry.category],['账户',entry.account],['日期',entry.date],['来源',entry.source],['备注',entry.note]].map(([key,value]) => `<dt>${escape(key)}</dt><dd>${escape(value)}</dd>`).join('');
+    $('#detail-dialog').showModal();
+  });
+  $('#close-detail').addEventListener('click', () => $('#detail-dialog').close());
+  const example = '一店12件问题衣服卖给老王，微信收到360元，支付宝付20元运费';
+  $('#use-example').addEventListener('click', () => { $('#ai-input').value = example; $('#ai-message').textContent = ''; });
+  $('#generate-draft').addEventListener('click', () => {
+    if (draft) { $('#ai-message').textContent = '当前示例草稿已生成，不会重复生成。刷新原型可重置演示。'; return; }
+    if ($('#ai-input').value.trim() !== example) { $('#ai-message').textContent = '本原型未连接真实 AI，请点击上方例句演示，或使用手动记账。'; return; }
+    const id = crypto.randomUUID();
+    draft = { id, entries:[{ id:`${id}-income`, kind:'income', cents:36000, shopId:'shop1', title:'老王 · 问题件销售（AI示例）', category:'问题件销售', account:'微信', date:'2026-10-13', source:'AI演示', note:'12件问题衣服，线下尾货渠道' },{ id:`${id}-freight`, kind:'expense', cents:2000, shopId:'shop1', title:'关联运费（AI示例）', category:'出货运费', account:'支付宝', date:'2026-10-13', source:'AI演示', note:'与收入同时确认；没有调用真实模型' }] };
+    $('#draft-card').hidden = false; $('#ai-message').textContent = '示例识别完成。请核对下方收入、费用与账户。';
+  });
+  $('#confirm-draft').addEventListener('click', () => {
+    if (!draft || state.committedDraftIds.includes(draft.id)) return;
+    state = commitDraft(state,draft); $('#confirm-draft').disabled = true; $('#confirm-draft').textContent = '已确认，不可重复入账'; $('#draft-status').textContent = '两笔关联记录已写入演示内存，可去账本查看。'; render();
+  });
+  render();
+</script>
+</body>
+</html>
