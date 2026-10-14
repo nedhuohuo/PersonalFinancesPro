@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for inline execution, or superpowers:subagent-driven-development only after the operator explicitly authorizes delegation. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 建立真正可运行的 Flutter Android/iOS 工程、Material 3 四入口和纯 Dart 金额规则，验证 Clean 依赖边界；这个阶段不声称完成本地账本或 AI 服务。
+**Goal:** 建立真正可运行的 Flutter Android/iOS 工程、Apple 风格 Cupertino 四入口和纯 Dart 金额规则，验证 Clean 依赖边界；这个阶段不声称完成本地账本或真实 AI 服务。
 
 **Architecture:** 按功能组织 presentation/domain/data，只为实际职责建立文件。app 负责路由、主题和构造器依赖装配；复杂记账业务在后续账本阶段实现，数据库及 HTTP 不能进入领域层。UI 按已产出的 OpenDesign 规则实现，但不嵌入网页原型。
 
-**Tech Stack:** Flutter stable 3.29.2 / 自带 Dart 3.7.2、Material 3、provider、go_router、flutter_lints、flutter_test、GitHub Actions。
+**Tech Stack:** Flutter stable 3.29.2 / 自带 Dart 3.7.2、Cupertino、cupertino_icons、provider、go_router、flutter_lints、flutter_test、GitHub Actions。
 
 **Spec:** `docs/superpowers/specs/2026-10-13-shop-ledger-design.md`；UI 依据 `docs/ui/UI_DESIGN.md`。
 
@@ -17,7 +17,9 @@
 - 首版以人民币为唯一货币。
 - 金额以整数分存储和计算，不用 `double` 处理金额；单笔及汇总金额不得超过 `9,000,000,000,000,000` 分，越界拒绝操作。
 - 金额输入从十进制字符串精确解析，最多两位小数；超出精度要求用户改正，不静默舍入。
-- 平台外现金净额不能称为店铺利润。
+- 平台外现金净额不能称为店铺利润；首页以实付支出、当前待付款和问题件回收为重点。
+- 用户授权 Apple 风格，遵循 `docs/ui/UI_DESIGN.md`，不沿用旧 Material 原型。
+- 系统安全区使用运行时数据而非写死高度；顶部、底部和键盘各有单一负责者，正常布局不得遮挡最后一行或输入栏。
 - domain 是纯 Dart，不导入 Flutter、SQLite、HTTP 或插件。
 - 不提交 API Key、真实账本、数据库、备份、签名文件或本机绝对 SDK 路径。
 - 在用户选定的当前目录开发分支 `feat/flutter-ledger` 工作，不直接修改 main，不创建额外 worktree。
@@ -34,7 +36,7 @@
 | 工程基础（本计划） | 稳定 SDK、Android/iOS 工程、主题和四入口、精确金额规则、分析/测试/CI、真实空状态 |
 | 本地账本 | 基础资料及停用、现金收支及作废恢复、关联审计、采购明细与部分付款、厂家退款及期初欠款、问题件二次销售、快递预付事件、外键/事务/迁移 |
 | 数据管理 | 各统计口径、CSV 转义及公式注入防护、20 MiB 完整备份校验、事务恢复、系统备份排除与敏感数据提示 |
-| AI | HTTPS 配置和安全存储、接收主机确认、发送同意、候选资料最小化、草稿补问与本地校验、一次性确认、超时取消及错误回退 |
+| AI | HTTPS 配置和安全存储、接收主机确认、发送同意、最少必要上下文、消息式对话及核心意图、Markdown 表格与本地校验、补问/修订、按钮/文字幂等确认和原消息状态回写、超时取消及错误回退 |
 | 双端验收 | 真实设备/模拟器离线流程、数据库迁移及恢复、安全存储和文件操作、Android 构建及 iOS 无签名构建 |
 
 后续每个阶段使用单独计划和对应的红绿测试；工程基础完成不代表这些业务已完成。所有完整产品要求继续以已批准设计文档为准。
@@ -43,7 +45,7 @@
 
 - Generated: `android/`、`ios/`、`.metadata`、`pubspec.yaml`、`pubspec.lock`、`analysis_options.yaml`。
 - Create: `.flutter-version`（内容 `3.29.2`）、`lib/main.dart`、`lib/app/app.dart`、`lib/app/router.dart`、`lib/app/theme.dart`。
-- Create: `lib/app/shell.dart`（NavigationBar + 路由子页面）、`lib/features/dashboard/presentation/dashboard_page.dart`、`lib/features/ledger/presentation/ledger_page.dart`、`lib/features/ai_bookkeeping/presentation/ai_page.dart`、`lib/features/catalog/presentation/settings_page.dart`。
+- Create: `lib/app/shell.dart`（单一 CupertinoTabBar + 路由子页面）、`lib/features/dashboard/presentation/dashboard_page.dart`、`lib/features/ledger/presentation/ledger_page.dart`、`lib/features/ai_bookkeeping/presentation/ai_page.dart`、`lib/features/catalog/presentation/settings_page.dart`。
 - Create: `lib/core/domain/money.dart`、`test/core/domain/money_test.dart`、`test/app/navigation_test.dart`、`tool/check_domain_boundaries.dart`。
 - Create: `.github/workflows/flutter.yml`；update `.gitignore` 与 `README.md`。
 
@@ -69,10 +71,10 @@ done
 Do not copy the generated README/LICENSE/gitignore over existing files. Do not copy generated tests before deciding their replacement. Keep the temporary scaffold out of Git.
 
 - [ ] Set the Android namespace/applicationId and iOS Runner product bundle identifier to `dev.nedhuohuo.personalfinancespro`; use a separate `.RunnerTests` suffix for the iOS test target. Set the display name to `网店账本` on both platforms.
-- [ ] Write `.flutter-version` containing `3.29.2`. Add provider/go_router through the pinned SDK so pub selects SDK-compatible versions and commit `pubspec.lock`:
+- [ ] Write `.flutter-version` containing `3.29.2`. Add provider/go_router and the standard Cupertino icon font through the pinned SDK so pub selects SDK-compatible versions and commit `pubspec.lock`:
 
 ```sh
-"$FLUTTER_SDK/bin/flutter" pub add provider go_router
+"$FLUTTER_SDK/bin/flutter" pub add provider go_router cupertino_icons
 "$FLUTTER_SDK/bin/flutter" pub get
 ```
 
@@ -155,16 +157,16 @@ final class Money {
 - [ ] Run the test and confirm it passes; add unit checks for zero formatting and invalid signed limits if implementation changes their behavior.
 - [ ] Commit the domain rule and its tests independently.
 
-## Task 3: Material shell and honest empty pages
+## Task 3: Cupertino shell and honest empty pages
 
 **Files:** all `lib/app/` files, four presentation pages and `test/app/navigation_test.dart`.
 
-**Interfaces:** Produces `ShopLedgerApp()` and `createRouter()` with routes `/home`, `/ledger`, `/ai`, `/settings`; `AppTheme.light` and `.dark`; no global repository or fake transaction data in production.
+**Interfaces:** Produces `ShopLedgerApp()` and `createRouter()` with routes `/home`, `/ledger`, `/ai`, `/settings`; `AppTheme.data` with system-resolving Cupertino colors; no global repository or fake transaction data in production.
 
 - [ ] Write navigation behavior tests first:
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:personal_finances_pro/app/app.dart';
 
@@ -174,13 +176,16 @@ void main() {
     await tester.pumpWidget(const ShopLedgerApp());
     await tester.pumpAndSettle();
     expect(find.text('平台外经营账本'), findsOneWidget);
-    await tester.tap(find.widgetWithText(NavigationDestination, '账本'));
+    await tester.tap(find.descendant(of: find.byType(CupertinoTabBar),
+        matching: find.text('账本')));
     await tester.pumpAndSettle();
     expect(find.text('还没有账目'), findsOneWidget);
-    await tester.tap(find.widgetWithText(NavigationDestination, 'AI记账'));
+    await tester.tap(find.descendant(of: find.byType(CupertinoTabBar),
+        matching: find.text('AI记账')));
     await tester.pumpAndSettle();
     expect(find.text('AI功能尚未接入'), findsOneWidget);
-    await tester.tap(find.widgetWithText(NavigationDestination, '设置'));
+    await tester.tap(find.descendant(of: find.byType(CupertinoTabBar),
+        matching: find.text('设置')));
     await tester.pumpAndSettle();
     expect(find.text('数据保存在本机'), findsOneWidget);
   });
@@ -188,7 +193,7 @@ void main() {
 ```
 
 - [ ] Run the test; confirm expected missing ShopLedgerApp failure.
-- [ ] Implement `MaterialApp.router` with system theme mode. Use `StatefulShellRoute.indexedStack` and a `Scaffold` hosting `NavigationBar`:
+- [ ] Implement `CupertinoApp.router` with system-resolving Cupertino theme. Use `StatefulShellRoute.indexedStack` and one Column-based shell hosting the branch navigator and `CupertinoTabBar` in normal layout:
 
 ```dart
 StatefulShellRoute.indexedStack(
@@ -206,18 +211,22 @@ StatefulShellRoute.indexedStack(
 )
 ```
 
-Set `initialLocation: '/home'`. `ShopLedgerApp` owns its router in State, creates it once and disposes it; do not rebuild a router on theme changes or use a global singleton. `AppShell` calls `navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex)` on selection. Use Flutter's native home/receipt/chat/settings icons with labelled destinations.
+Set `initialLocation: '/home'`. `ShopLedgerApp` owns its router in State, creates it once and disposes it; do not rebuild a router on theme changes or use a global singleton. `AppShell` calls `navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex)` on selection. Use `CupertinoIcons` home/book/chat/settings and labelled `BottomNavigationBarItem` tabs. Do not repeat the same `navigationShell` in four `CupertinoTabScaffold.tabBuilder` children.
 
-- [ ] Implement light/dark Material 3 themes from `ColorScheme.fromSeed(seedColor: Color(0xFF1A73E8), brightness: ...)`, map semantic roles to UI rules, and use native text styles. Padding 16, Card radius 12, minimum button targets 48. Respect SafeArea and large text.
-- [ ] Implement honest pages: dashboard says `平台外经营账本` and scope note; ledger says `还没有账目`; AI says `AI功能尚未接入`, without an enabled Key field; settings says `数据保存在本机` with no fake backup button. Do not ship the prototype's seven records or its demo logic in App sources.
-- [ ] Add small-screen and text-scale tests using `tester.view.physicalSize`/`devicePixelRatio`, restore test values via addTearDown, and assert `tester.takeException()` is null after navigating at width 320 and text scale 1.5.
-- [ ] Run all Widget and domain tests, analyze and format. Commit the native shell as an independently runnable stage.
+- [ ] Implement `AppTheme.data` with `CupertinoThemeData`, primaryColor `CupertinoColors.systemBlue`, scaffoldBackgroundColor `CupertinoColors.systemGroupedBackground`, dynamic label/separator colors and native typography; leave brightness system-resolving. Use large titles, grouped rounded surfaces, padding 16 and minimum button targets 48. Ordinary expenditure is neutral, not alarm red.
+- [ ] Define safe-area ownership: each branch's Cupertino page/navigation bar handles top inset. The shell's CupertinoTabBar handles bottom inset once, without an outer bottom SafeArea; while tabs are visible, `MediaQuery.removePadding(removeBottom: true)` removes the already-consumed bottom padding from the branch subtree. Include horizontal insets where content needs them, not a second top SafeArea under a bar.
+- [ ] When `MediaQuery.viewInsetsOf(context).bottom > 0`, hide the tab bar, give the branch the remaining full viewport and let its `CupertinoPageScaffold(resizeToAvoidBottomInset: true)` avoid the keyboard exactly once. Do not additionally subtract viewInsets with manual padding or a second resizing shell. Focused fields/message composer stay above the keyboard; body scrolls to reveal focus.
+- [ ] Implement honest pages: dashboard says `平台外经营账本`, prioritizes `本月实付支出` and explains the missing ledger rather than pretending to compute profits; ledger says `还没有账目` and identifies its not-yet-connected state. AI shows the conversation layout with `AI功能尚未接入` and disabled send/confirmation; do not expose an enabled Key field or ship the prototype's scripted intents/records. Settings says `数据保存在本机` with no fake backup button. Real conversation behavior belongs to the AI stage after local persistence exists.
+- [ ] Add Widget checks at widths 320/390/430 and text scale 1.5, no layout exceptions or clipped actionable content; reset physicalSize, devicePixelRatio and platformDispatcher text scale via addTearDown.
+- [ ] Add `tester.view.padding`/`viewPadding` scenarios top/bottom 0/0, 24/24 and 54/34. Check top content and tab hit rectangles stay out of system regions and the last row can scroll clear; retain actual tab height rather than assuming 50 plus inset by hand.
+- [ ] Simulate keyboard with `tester.view.viewInsets = const FakeViewPadding(bottom: 300)` and padding reflecting the covered bottom safe area. Verify tab bar hidden, AI input above `logicalHeight - 300`, focused controls scroll into view and no double 300 inset. Restore all values via addTearDown and reopen tabs after keyboard close. Widget simulations are not true device validation.
+- [ ] Run all Widget/domain tests, analyze and format. Commit the native shell as an independently runnable stage.
 
 ## Task 4: Boundaries, CI and documentation
 
 **Files:** `tool/check_domain_boundaries.dart`, `.github/workflows/flutter.yml`, `.gitignore`, `README.md`.
 
-**Interfaces:** Produces a nonzero exit code for forbidden domain imports; CI reads `.flutter-version` and checks format/analyze/tests/Android build.
+**Interfaces:** Produces a nonzero exit code for forbidden domain imports; CI reads `.flutter-version`, checks format/analyze/tests on push/PR and builds Android on main.
 
 - [ ] Implement a Dart stdlib check scanning files in `lib/**/domain/` and `lib/core/domain/`. For each import/export reject any `package:` dependency except `package:personal_finances_pro/` paths that themselves stay in domain; relative paths must resolve inside a domain folder. Permit `dart:` libraries. It must reject a deliberately injected Flutter import during a temporary fixture check, then pass the actual sources.
 - [ ] Add GitHub Actions trigger `push` and `pull_request`, read `.flutter-version` into step output, install that exact Flutter stable version, then run:
@@ -228,8 +237,9 @@ dart format --output=none --set-exit-if-changed lib test tool
 dart run tool/check_domain_boundaries.dart
 flutter analyze
 flutter test
-flutter build apk --debug
 ```
+
+Add `flutter build apk --debug` as a separate step only when `github.ref == 'refs/heads/main'`, matching the product CI scope.
 
 Use `actions/checkout@v4` and `subosito/flutter-action@v2`, with `permissions: contents: read`. Do not inject private keys or real AI configuration. Native dependency lockfiles remain tracked.
 
@@ -240,6 +250,6 @@ Use `actions/checkout@v4` and `subosito/flutter-action@v2`, with `permissions: c
 
 ## Handoff
 
-UI direction needs a visual review in OpenDesign before locking production layout. After this plan, the next plan is the local-ledger stage, whose acceptance requires actual persisted records, transactional procurement/payment and prepaid-wallet rules; a screen shell does not satisfy it.
+UI direction is Apple-style under the user's visual-design authorization; OpenDesign now demonstrates spending-first pages and a message-based AI draft workflow. Dynamic system bars and keyboards still require native Widget and device verification. After this plan, the next plan is the local-ledger stage, whose acceptance requires actual persisted records, transactional procurement/payment and prepaid-wallet rules; a screen shell does not satisfy it.
 
 Execution options: current-session inline execution (no additional delegation), or per-task subagents only if the user explicitly requests them.

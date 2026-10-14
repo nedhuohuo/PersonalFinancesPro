@@ -1,5 +1,7 @@
 # OpenDesign UI Prototype Implementation Plan
 
+> 历史计划：下列 Material 风格描述是初版执行记录，已由 `2026-10-13-apple-ui-revision.md` 及 `2026-10-13-conversation-ui.md` 替代。当前正式依据为 `docs/ui/UI_DESIGN.md`，不再按旧 Material 布局实施。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Native subagents are not authorized for this task; the current session uses the user's local OpenDesign App as the design workbench.
 
 **Goal:** 使用本机 OpenDesign 产出可交互的移动端 UI 原型和 Flutter UI 实现依据，不把网页原型当作正式 App。
