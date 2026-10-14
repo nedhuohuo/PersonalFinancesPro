@@ -125,6 +125,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
       );
       await _setCashVoid(txn, payment['cash_bill_id']! as int, true, now);
       await _refreshPurchasePosition(txn, payment['purchase_id']! as int);
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(
         txn,
         'purchase_payment',
@@ -194,6 +195,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
         where: 'id = ?',
         whereArgs: [purchaseId],
       );
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(txn, 'purchase', purchaseId, 'void', why, purchase);
     });
   }
@@ -757,9 +759,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
       final cashId = adjustment['cash_bill_id'] as int?;
       if (cashId != null) await _setCashVoid(txn, cashId, isVoid, now);
       await _refreshPurchasePosition(txn, adjustment['purchase_id']! as int);
-      if (!isVoid) {
-        await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
-      }
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(
         txn,
         'purchase_adjustment',
@@ -797,9 +797,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
       );
       await _setCashVoid(txn, payment['cash_bill_id']! as int, isVoid, now);
       await _refreshOpeningDebtPaid(txn, payment['opening_debt_id']! as int);
-      if (!isVoid) {
-        await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
-      }
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(
         txn,
         'supplier_opening_debt_payment',
@@ -845,9 +843,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
       for (final fee in fees) {
         await _setCashVoid(txn, fee['cash_bill_id']! as int, isVoid, now);
       }
-      if (!isVoid) {
-        await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
-      }
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(
         txn,
         'problem_resale',
@@ -945,9 +941,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
       final cashId = event['cash_bill_id'] as int?;
       if (cashId != null) await _setCashVoid(txn, cashId, isVoid, now);
       await _recalculateCourier(txn, event['courier_account_id']! as int);
-      if (!isVoid) {
-        await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
-      }
+      await SqliteAggregateGuard.ensureAllActiveTotalsWithinCap(txn);
       await _audit(
         txn,
         'courier_event',
