@@ -63,6 +63,7 @@ final class SqliteCashBillRepository implements CashBillRepository {
 
   @override
   Future<void> voidCashBill(int id, {required String reason}) async {
+    final auditReason = _validatedStatusReason(reason);
     await _db.transaction((txn) async {
       final existing = await _cashBillRow(txn, id);
       _rejectLinked(existing);
@@ -75,12 +76,13 @@ final class SqliteCashBillRepository implements CashBillRepository {
         whereArgs: [id],
       );
       final row = await _cashBillRow(txn, id);
-      await _insertAudit(txn, 'void', id, reason, row);
+      await _insertAudit(txn, 'void', id, auditReason, row);
     });
   }
 
   @override
   Future<void> restoreCashBill(int id, {required String reason}) async {
+    final auditReason = _validatedStatusReason(reason);
     await _db.transaction((txn) async {
       final existing = await _cashBillRow(txn, id);
       _rejectLinked(existing);
@@ -94,7 +96,7 @@ final class SqliteCashBillRepository implements CashBillRepository {
       );
       await SqliteAggregateGuard.ensureCashBillTotalWithinCap(txn);
       final row = await _cashBillRow(txn, id);
-      await _insertAudit(txn, 'restore', id, reason, row);
+      await _insertAudit(txn, 'restore', id, auditReason, row);
     });
   }
 
@@ -282,6 +284,14 @@ void _validateAmount(Money amount) {
   if (amount.cents <= 0 || amount.cents > Money.maxCents) {
     throw const FormatException('金额超出允许范围');
   }
+}
+
+String _validatedStatusReason(String reason) {
+  final trimmed = reason.trim();
+  if (trimmed.isEmpty) {
+    throw const FormatException('原因不能为空');
+  }
+  return trimmed;
 }
 
 CashBill _cashBillFromRow(Map<String, Object?> row) => CashBill(

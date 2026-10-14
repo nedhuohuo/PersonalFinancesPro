@@ -125,6 +125,103 @@ void main() {
     },
   );
 
+  test('blank status reasons are rejected before SQL writes', () async {
+    final env = await SqliteLedgerTestHarness.open();
+    addTearDown(env.close);
+    final account = await env.createAccount('测试账户I');
+    final category = await env.createCategory(
+      name: '测试支出I',
+      direction: CashDirection.expense,
+    );
+    final bill = await env.cashBills.createCashBill(
+      CashBillDraft(
+        businessDate: LocalDate.parse('2026-10-14'),
+        direction: CashDirection.expense,
+        amount: Money.parsePositive('9'),
+        scope: const BusinessScope.public(),
+        categoryId: category.id,
+        accountId: account.id,
+      ),
+    );
+
+    await expectLater(
+      env.cashBills.voidCashBill(bill.id, reason: '   '),
+      throwsA(isA<FormatException>()),
+    );
+    expect(await env.auditLogCount(), 1);
+    expect(await _isVoid(env, bill.id), isFalse);
+
+    await env.cashBills.voidCashBill(bill.id, reason: '  作废原因  ');
+    expect(await env.auditLogCount(), 2);
+    expect(await _isVoid(env, bill.id), isTrue);
+    expect(await _latestAuditReason(env), '作废原因');
+
+    await expectLater(
+      env.cashBills.restoreCashBill(bill.id, reason: ''),
+      throwsA(isA<FormatException>()),
+    );
+    expect(await env.auditLogCount(), 2);
+    expect(await _isVoid(env, bill.id), isTrue);
+  });
+
+  test(
+    'ordinary void and restore update SQL status, filters, and audits',
+    () async {
+      final env = await SqliteLedgerTestHarness.open();
+      addTearDown(env.close);
+      final account = await env.createAccount('测试账户J');
+      final category = await env.createCategory(
+        name: '测试支出J',
+        direction: CashDirection.expense,
+      );
+      final bill = await env.cashBills.createCashBill(
+        CashBillDraft(
+          businessDate: LocalDate.parse('2026-10-14'),
+          direction: CashDirection.expense,
+          amount: Money.parsePositive('12'),
+          scope: const BusinessScope.public(),
+          categoryId: category.id,
+          accountId: account.id,
+        ),
+      );
+
+      await env.cashBills.voidCashBill(bill.id, reason: '  手动作废  ');
+      final voidedRow = await _cashBillSqlRow(env, bill.id);
+      expect(voidedRow['id'], bill.id);
+      expect(voidedRow['is_void'], 1);
+      expect(voidedRow['voided_at_utc'], isNotNull);
+      expect(
+        await env.cashBills.listCashBills(const CashBillFilter()),
+        isEmpty,
+      );
+      final voidedBills = await env.cashBills.listCashBills(
+        const CashBillFilter(includeVoid: true),
+      );
+      expect(voidedBills.single.id, bill.id);
+      expect(voidedBills.single.isVoid, isTrue);
+      expect(await _auditActionsAndReasons(env, bill.id), [
+        ['create', ''],
+        ['void', '手动作废'],
+      ]);
+
+      await env.cashBills.restoreCashBill(bill.id, reason: '  手动恢复  ');
+      final restoredRow = await _cashBillSqlRow(env, bill.id);
+      expect(restoredRow['id'], bill.id);
+      expect(restoredRow['is_void'], 0);
+      expect(restoredRow['voided_at_utc'], isNull);
+      final activeBills = await env.cashBills.listCashBills(
+        const CashBillFilter(),
+      );
+      expect(activeBills.single.id, bill.id);
+      expect(activeBills.single.isVoid, isFalse);
+      expect(await _auditActionsAndReasons(env, bill.id), [
+        ['create', ''],
+        ['void', '手动作废'],
+        ['restore', '手动恢复'],
+      ]);
+    },
+  );
+
   test(
     'void and restore reject linked rows through generic cash flows',
     () async {
@@ -223,3 +320,39 @@ void main() {
             : false,
   );
 }
+
+Future<bool> _isVoid(SqliteLedgerTestHarness env, int id) async =>
+    (await _cashBillSqlRow(env, id))['is_void'] == 1;
+
+Future<Map<String, Object?>> _cashBillSqlRow(
+  SqliteLedgerTestHarness env,
+  int id,
+) async =>
+    (await env.database.query(
+      'cash_bills',
+      where: 'id = ?',
+      whereArgs: [id],
+    )).single;
+
+Future<String> _latestAuditReason(SqliteLedgerTestHarness env) async =>
+    (await env.database.query(
+          'audit_logs',
+          columns: ['reason'],
+          orderBy: 'id DESC',
+          limit: 1,
+        )).single['reason']!
+        as String;
+
+Future<List<List<String>>> _auditActionsAndReasons(
+  SqliteLedgerTestHarness env,
+  int billId,
+) async =>
+    (await env.database.query(
+          'audit_logs',
+          columns: ['action', 'reason'],
+          where: 'entity_type = ? AND entity_id = ?',
+          whereArgs: ['cash_bill', billId],
+          orderBy: 'id',
+        ))
+        .map((row) => [row['action']! as String, row['reason']! as String])
+        .toList();

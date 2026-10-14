@@ -223,6 +223,7 @@ final class SqliteCatalogRepository implements CatalogRepository {
     final now = utcNowIso();
     return _db.insert(table, {
       ...values,
+      'name': _validatedName(values['name']! as String),
       'created_at_utc': now,
       'updated_at_utc': now,
     });
@@ -231,7 +232,7 @@ final class SqliteCatalogRepository implements CatalogRepository {
   Future<void> _rename(String table, int id, String name) async {
     final count = await _db.update(
       table,
-      {'name': name, 'updated_at_utc': utcNowIso()},
+      {'name': _validatedName(name), 'updated_at_utc': utcNowIso()},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -370,3 +371,11 @@ ResaleChannel _resaleChannelFromRow(Map<String, Object?> row) => ResaleChannel(
   name: row['name']! as String,
   isActive: sqliteBool(row['is_active']),
 );
+
+String _validatedName(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) {
+    throw const FormatException('名称不能为空');
+  }
+  return trimmed;
+}
