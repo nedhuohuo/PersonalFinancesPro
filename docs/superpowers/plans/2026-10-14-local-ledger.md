@@ -519,6 +519,7 @@ final class LedgerDatabase {
 // test/support/sqlite_ledger_test_harness.dart
 final class SqliteLedgerTestHarness {
   static Future<SqliteLedgerTestHarness> open();
+  Database get database; // Host-test seam; no presentation SQL access.
   CatalogRepository get catalog;
   CashBillRepository get cashBills;
   LedgerRepository get ledger;
@@ -544,6 +545,8 @@ final class SqliteLedgerTestHarness {
   Future<void> close();
 }
 ```
+
+The contract above is the final Task 3 harness shape. Task 2 implements only the complete database/catalog/cash portion and pure draft factories; it does not declare `ledger`/`dashboard` getters or business seed helpers until their real adapters exist. Task 3 extends this same owned test helper with those getters and `seedPurchase`, `seedPaidRefund`, `linkedCashBillForAdjustment`, `seedProblemResale`, and `seedCourierTopUpThenConsumeAll`. Each task must analyze and test independently without forward imports, late uninitialized getters, or stubs.
 
 The harness owns `sqfliteFfiInit()`, sets no production global locator, passes `databaseFactoryFfi` into `LedgerDatabase.open`, creates a unique temp directory, returns unique account/category names, and calls `ensureDefaultCatalogs()` once. Tests must not create a second default `微信` after defaults seed it; use unique names such as `测试账户A`.
 
@@ -975,6 +978,7 @@ git commit -m "feat: add sqlite cash ledger storage"
 - Create: `lib/features/ledger/data/sqlite_ledger_repository.dart`
 - Create: `lib/features/dashboard/data/sqlite_dashboard_repository.dart`
 - Extend: `lib/core/data/sqlite_aggregate_guard.dart`
+- Extend: `test/support/sqlite_ledger_test_harness.dart` with the business/dashboard portion of its final contract
 - Test: `test/features/ledger/data/sqlite_business_transaction_test.dart`
 - Test: `test/features/dashboard/data/sqlite_dashboard_repository_test.dart`
 
