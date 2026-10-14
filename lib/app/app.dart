@@ -14,6 +14,11 @@ import 'package:personal_finances_pro/features/ledger/domain/cash_bill_repositor
 import 'package:personal_finances_pro/features/ledger/domain/ledger_repository.dart';
 import 'package:personal_finances_pro/features/ledger/presentation/cash_bill_pages.dart';
 import 'package:provider/provider.dart';
+import 'package:personal_finances_pro/features/ledger/presentation/procurement_pages.dart';
+import 'package:personal_finances_pro/features/ledger/presentation/problem_resale_pages.dart';
+import 'package:personal_finances_pro/features/ledger/presentation/courier_pages.dart';
+import 'package:personal_finances_pro/features/ledger/presentation/ledger_detail_pages.dart';
+import 'package:personal_finances_pro/features/ledger/domain/ledger_models.dart';
 
 class ShopLedgerApp extends StatefulWidget {
   const ShopLedgerApp({
@@ -122,6 +127,102 @@ GoRouter createRouter() {
                 path: '/ledger',
                 builder: (_, __) => const LedgerPage(),
                 routes: [
+                  GoRoute(
+                    path: 'purchases/new',
+                    builder: (_, __) => const PurchaseFormPage(),
+                  ),
+                  GoRoute(
+                    path: 'purchases/:id',
+                    builder:
+                        (_, s) => PurchaseDetailPage(
+                          id: int.parse(s.pathParameters['id']!),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'purchases/:id/payment',
+                    builder:
+                        (_, s) => PurchasePaymentPage(
+                          id: int.parse(s.pathParameters['id']!),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'purchases/:id/adjust',
+                    builder:
+                        (_, s) => PurchaseAdjustmentPage(
+                          id: int.parse(s.pathParameters['id']!),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'opening-debts/new',
+                    builder:
+                        (_, __) => const PurchaseFormPage(openingDebt: true),
+                  ),
+                  GoRoute(
+                    path: 'opening-debts/:id',
+                    builder:
+                        (_, s) => PurchaseDetailPage(
+                          id: int.parse(s.pathParameters['id']!),
+                          openingDebt: true,
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'opening-debts/:id/payment',
+                    builder:
+                        (_, s) => PurchasePaymentPage(
+                          id: int.parse(s.pathParameters['id']!),
+                          openingDebt: true,
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'resales/new',
+                    builder: (_, __) => const ProblemResaleFormPage(),
+                  ),
+                  GoRoute(
+                    path: 'resales/:id',
+                    builder:
+                        (_, s) => ProblemResaleDetailPage(
+                          id: int.parse(s.pathParameters['id']!),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'courier/accounts/new',
+                    builder: (_, __) => const CourierFormPage(),
+                  ),
+                  GoRoute(
+                    path: 'courier/:id',
+                    builder:
+                        (_, s) => CourierDetailPage(
+                          id: int.parse(s.pathParameters['id']!),
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'courier/:id/topup',
+                    builder:
+                        (_, s) => CourierFormPage(
+                          id: int.parse(s.pathParameters['id']!),
+                          type: CourierEventType.topUp,
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'courier/:id/consume',
+                    builder:
+                        (_, s) => CourierFormPage(
+                          id: int.parse(s.pathParameters['id']!),
+                          type: CourierEventType.consume,
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'courier/:id/refund',
+                    builder:
+                        (_, s) => CourierFormPage(
+                          id: int.parse(s.pathParameters['id']!),
+                          type: CourierEventType.refund,
+                        ),
+                  ),
+                  GoRoute(
+                    path: 'detail',
+                    builder: (_, __) => const LedgerDetailPage(),
+                  ),
                   GoRoute(
                     path: 'cash/new',
                     builder: (_, __) => const CashBillFormPage(),

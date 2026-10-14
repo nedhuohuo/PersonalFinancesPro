@@ -304,3 +304,128 @@ final class CashLedgerViewModel extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// One mounted business screen's commit/read boundary, not a transaction engine.
+final class LedgerMutation extends ChangeNotifier {
+  bool pending = false;
+  bool loading = false;
+  bool ready = false;
+  bool draftCommitted = false;
+  bool refreshRequired = false;
+  String? error;
+  bool _disposed = false;
+
+  bool get canAct =>
+      !_disposed && ready && !pending && !loading && !refreshRequired;
+  bool get canSave => canAct && !draftCommitted;
+
+  Future<void> read(Future<void> Function() load) async {
+    if (_disposed || loading || pending) return;
+    loading = true;
+    ready = false;
+    error = null;
+    _notify();
+    try {
+      await load();
+      ready = true;
+      refreshRequired = false;
+    } catch (e) {
+      error = '${draftCommitted || refreshRequired ? '已提交，但刷新失败：' : ''}$e';
+    } finally {
+      loading = false;
+      _notify();
+    }
+  }
+
+  Future<bool> submit(
+    Future<void> Function() write, {
+    required Future<void> Function() reload,
+    bool newDraft = false,
+  }) async {
+    if (!canAct || (newDraft && draftCommitted)) return false;
+    pending = true;
+    error = null;
+    _notify();
+    var committed = false;
+    try {
+      await write(); // Includes parsing/validation within this caught boundary.
+      committed = true;
+      if (newDraft) draftCommitted = true;
+      refreshRequired = true;
+      ready = false;
+      if (_disposed) return committed;
+      try {
+        await reload();
+        ready = true;
+        refreshRequired = false;
+      } catch (e) {
+        error = '已提交，但刷新失败：$e';
+      }
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      pending = false;
+      _notify();
+    }
+    return committed;
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
+final class BusinessCatalogs {
+  List<Shop> shops = [];
+  List<Party> parties = [];
+  List<Category> categories = [];
+  List<AccountLabel> accounts = [];
+  List<ResaleChannel> channels = [];
+
+  Future<void> load(CatalogRepository repository) async {
+    shops = await repository.listShops(includeInactive: true);
+    parties = await repository.listParties(includeInactive: true);
+    categories = await repository.listCategories(includeInactive: true);
+    accounts = await repository.listAccountLabels(includeInactive: true);
+    channels = await repository.listResaleChannels(includeInactive: true);
+  }
+
+  String scopeName(BusinessScope? scope) =>
+      scope == null
+          ? '全部'
+          : scope.shopId == null
+          ? '公共'
+          : shops.firstWhere((e) => e.id == scope.shopId).name;
+  String partyName(int id) => parties.firstWhere((e) => e.id == id).name;
+  String accountName(int id) => accounts.firstWhere((e) => e.id == id).name;
+  String categoryName(int id) => categories.firstWhere((e) => e.id == id).name;
+  String channelName(int id) => channels.firstWhere((e) => e.id == id).name;
+}
+
+int requiredLedgerId(int? id, String label) {
+  if (id == null) throw FormatException('请选择$label');
+  return id;
+}
+
+int positiveLedgerQuantity(String input) {
+  if (!RegExp(r'^[0-9]+$').hasMatch(input.trim())) {
+    throw const FormatException('数量必须为正整数');
+  }
+  final value = int.tryParse(input.trim());
+  if (value == null || value <= 0) throw const FormatException('数量必须为正整数');
+  return value;
+}
+
+Money nonnegativeLedgerMoney(String input) {
+  final text = input.trim();
+  if (text.isEmpty || RegExp(r'^0+(\.0{1,2})?$').hasMatch(text)) {
+    return Money.zero;
+  }
+  return Money.parsePositive(text);
+}

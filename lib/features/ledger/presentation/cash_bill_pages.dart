@@ -43,9 +43,12 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
       final id = widget.id;
       if (id != null) {
         final bill = _viewModel.billById(id);
-        if (bill != null) {
+        if (bill != null && bill.businessOrigin == BusinessOrigin.ordinary) {
           _viewModel.beginEditCashBill(bill);
           setState(() => _formReady = true);
+        } else if (bill != null) {
+          _viewModel.errorMessage = '关联账目只读，请到所属业务处理；不会新增现金账。';
+          setState(() {});
         }
       }
     });
@@ -291,6 +294,20 @@ class _CashBillDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ordinary = bill.businessOrigin == BusinessOrigin.ordinary;
+    final expectedOrigin = switch (bill.linkedType) {
+      LinkedBillType.purchasePayment => BusinessOrigin.purchasePayment,
+      LinkedBillType.supplierRefund => BusinessOrigin.supplierRefund,
+      LinkedBillType.openingDebtPayment => BusinessOrigin.openingDebtPayment,
+      LinkedBillType.problemResaleIncome => BusinessOrigin.resaleIncome,
+      LinkedBillType.problemResaleFee => BusinessOrigin.resaleFee,
+      LinkedBillType.courierTopUp => BusinessOrigin.courierTopUp,
+      LinkedBillType.courierRefund => BusinessOrigin.courierRefund,
+      null => null,
+    };
+    final validLink =
+        bill.linkedId != null &&
+        bill.linkedId! > 0 &&
+        expectedOrigin == bill.businessOrigin;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -330,12 +347,31 @@ class _CashBillDetailBody extends StatelessWidget {
                     : null,
             child: Text(bill.isVoid ? '恢复' : '作废'),
           ),
-        ] else
+        ] else ...[
           InfoCard(
             title: '关联账目只读',
-            body:
-                '这条现金账来自 ${_originLabel(bill.businessOrigin)}，请到对应业务详情处理；Task5 接入前暂不开放通用编辑。',
+            body: '这条现金账来自 ${_originLabel(bill.businessOrigin)}，请到所属业务详情处理。',
           ),
+          if (!validLink)
+            const Text('关联信息不完整或不一致，无法打开所属业务；请检查数据。')
+          else
+            CupertinoButton(
+              onPressed: () async {
+                final owner = switch (bill.linkedType!) {
+                  LinkedBillType.purchasePayment ||
+                  LinkedBillType.supplierRefund => 'purchases',
+                  LinkedBillType.openingDebtPayment => 'opening-debts',
+                  LinkedBillType.problemResaleIncome ||
+                  LinkedBillType.problemResaleFee => 'resales',
+                  LinkedBillType.courierTopUp ||
+                  LinkedBillType.courierRefund => 'courier',
+                };
+                await context.push('/ledger/$owner/${bill.linkedId}');
+                await viewModel.reload();
+              },
+              child: const Text('打开所属业务'),
+            ),
+        ],
       ],
     );
   }

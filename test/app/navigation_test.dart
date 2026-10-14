@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:personal_finances_pro/features/ledger/domain/ledger_models.dart';
 
 import '../support/widget_test_app.dart';
 
@@ -368,6 +370,64 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
       }
+    },
+  );
+  testWidgets(
+    'linked cash direct edit is blocked and inconsistent owner link has no navigation',
+    (tester) async {
+      final bill = CashBill(
+        id: 1,
+        businessDate: validDraft.businessDate,
+        direction: validDraft.direction,
+        amount: validDraft.amount,
+        scope: validDraft.scope,
+        categoryId: 1,
+        accountId: 1,
+        partyId: null,
+        note: 'linked',
+        entrySource: EntrySource.manual,
+        businessOrigin: BusinessOrigin.purchasePayment,
+        linkedType: LinkedBillType.courierRefund,
+        linkedId: 42,
+        isVoid: false,
+        createdAtUtc: DateTime.utc(2026),
+        updatedAtUtc: DateTime.utc(2026),
+      );
+      await pumpLedgerAppWithRepositories(
+        tester,
+        FakeAppRepositories(
+          catalog: RecordingCatalogRepository(),
+          cashBills: RecordingCashBillRepository(bills: [bill]),
+          ledger: RecordingLedgerRepository(),
+          dashboard: RecordingDashboardRepository(),
+        ),
+      );
+      final router = GoRouter.of(
+        tester.element(find.byType(CupertinoPageScaffold)),
+      );
+      router.go('/ledger/cash/1/edit');
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('cash-save-button')),
+        200,
+        scrollable: find.byWidgetPredicate(
+          (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+        ),
+      );
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('cash-save-button')),
+            )
+            .onPressed,
+        isNull,
+      );
+      router.go('/ledger/cash/1');
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -800));
+      await tester.pumpAndSettle();
+      expect(find.text('打开所属业务'), findsNothing);
+      expect(find.textContaining('关联信息不完整或不一致'), findsOneWidget);
     },
   );
 }

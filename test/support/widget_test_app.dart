@@ -575,7 +575,13 @@ final class RecordingDashboardRepository implements DashboardRepository {
 
 final class RecordingLedgerRepository implements LedgerRepository {
   RecordingLedgerRepository({this.error});
-  final Object? error;
+  Object? error;
+  Future<void>? purchaseGate;
+  Object? purchaseDetailError;
+  PurchaseDetail? purchaseDetail;
+  int createPurchaseCalls = 0;
+  PurchaseDraft? lastPurchaseDraft;
+  PurchasePaymentDraft? lastInitialPayment;
 
   Never _throw() =>
       throw (error ?? UnimplementedError('not used in widget tests'));
@@ -584,7 +590,15 @@ final class RecordingLedgerRepository implements LedgerRepository {
   Future<int> createPurchase(
     PurchaseDraft draft, {
     PurchasePaymentDraft? initialPayment,
-  }) async => _throw();
+  }) async {
+    createPurchaseCalls++;
+    lastPurchaseDraft = draft;
+    lastInitialPayment = initialPayment;
+    await purchaseGate;
+    if (error != null) throw error!;
+    return purchaseDetail?.purchase.id ?? _throw();
+  }
+
   @override
   Future<void> recordPurchasePayment({
     required int purchaseId,
@@ -625,7 +639,11 @@ final class RecordingLedgerRepository implements LedgerRepository {
   @override
   Future<List<Purchase>> listPurchases(PurchaseFilter filter) async => const [];
   @override
-  Future<PurchaseDetail> getPurchaseDetail(int purchaseId) async => _throw();
+  Future<PurchaseDetail> getPurchaseDetail(int purchaseId) async {
+    if (purchaseDetailError != null) throw purchaseDetailError!;
+    return purchaseDetail ?? _throw();
+  }
+
   @override
   Future<int> createSupplierOpeningDebt(SupplierOpeningDebtDraft draft) async =>
       _throw();

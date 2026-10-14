@@ -7,6 +7,7 @@ import 'package:personal_finances_pro/features/ledger/domain/cash_bill_repositor
 import 'package:personal_finances_pro/features/ledger/domain/ledger_models.dart';
 import 'package:personal_finances_pro/features/ledger/presentation/ledger_view_models.dart';
 import 'package:provider/provider.dart';
+import 'package:personal_finances_pro/features/ledger/presentation/ledger_detail_pages.dart';
 
 class LedgerPage extends StatefulWidget {
   const LedgerPage({super.key});
@@ -56,6 +57,7 @@ class _LedgerPageState extends State<LedgerPage> {
                   },
                   child: const Text('新增现金账'),
                 ),
+                ManualLedgerOverview(onReturn: viewModel.reload),
                 _FilterCard(viewModel: viewModel),
                 if (viewModel.isLoading)
                   const InfoCard(title: '正在读取', body: '正在加载现金账。'),
@@ -65,8 +67,6 @@ class _LedgerPageState extends State<LedgerPage> {
                   const InfoCard(title: '还没有账目', body: '当前筛选下没有现金账，金额为 0.00。'),
                 for (final bill in viewModel.bills)
                   _CashBillCard(viewModel: viewModel, bill: bill),
-                const InfoCard(title: '采购单', body: 'Task5 接入采购单详情和修正操作。'),
-                const InfoCard(title: '快递预付', body: 'Task5 接入快递预付详情和修正操作。'),
               ]),
             ],
           ),
