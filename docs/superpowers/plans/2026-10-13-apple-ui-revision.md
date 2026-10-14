@@ -32,7 +32,7 @@
 
 **Interfaces:** Existing `totals(entries, shopId)` and `formatMoney(cents)` stay unchanged. UI consumes `data-stat="expense"` and `data-stat="resale"`; net appears only in the ledger's collapsed summary.
 
-- [ ] Replace homepage expectations with:
+- [x] Replace homepage expectations with:
 
 ```js
 assert.equal(await page.$eval('#home [data-stat="expense"]', e => e.textContent.trim()), '4,600.00');
@@ -43,7 +43,7 @@ assert.equal(await page.$eval('#home [data-stat="expense"]', e => e.textContent.
 assert.equal(await page.$eval('#home [data-stat="resale"]', e => e.textContent.trim()), '360.00');
 ```
 
-- [ ] Simulate safe-area values with root CSS variables; test 0/0, 24/24 and 54/34 at 320/390/430 widths. Observe actual click-target rectangles rather than assert CSS source strings:
+- [x] Simulate safe-area values with root CSS variables; test 0/0, 24/24 and 54/34 at 320/390/430 widths. Observe actual click-target rectangles rather than assert CSS source strings:
 
 ```js
 await page.evaluate(([top, bottom]) => {
@@ -62,22 +62,22 @@ assert.ok(positions.tabBottom <= 844 - 34);
 assert.ok(positions.contentBottom <= positions.navTop);
 ```
 
-- [ ] Add a generic 100-yuan income through the manual form; assert problem-item recovery remains 1,640 yuan and paid expense remains 4,600 yuan. Adjust subsequent record-count expectations for that real extra demo record.
-- [ ] Run the browser check and confirm the new homepage assertion fails on the old prototype. Existing model check remains green.
+- [x] Add a generic 100-yuan income through the manual form; assert problem-item recovery remains 1,640 yuan and paid expense remains 4,600 yuan. Adjust subsequent record-count expectations for that real extra demo record.
+- [x] Run the browser check and confirm the new homepage assertion fails on the old prototype. Existing model check remains green.
 
 ## Task 2: Minimal Apple interface revision
 
-- [ ] Replace the presentation markup/styles as a complete rewrite while preserving model imports and exact money validation.
-- [ ] Use neutral grouped surfaces, large Apple-style title, monochrome spending and restrained blue controls. Non-interactive money cards are not disguised as buttons.
-- [ ] Move “记一笔” into the header; remove the floating action that covers transactions. Navigation uses labelled icon/text controls with clear current state, not Material selection pills.
-- [ ] Use `viewport-fit=cover`, CSS `env(safe-area-inset-*)`, a flex app with `height:100dvh`, and an `overflow:auto` content region. Footer is a normal flex child with actual bottom safe-area padding; no fixed bottom offsets or manually estimated content footer gap.
-- [ ] Derive problem-item recovery with the existing totals function over income records in category `问题件销售`; cash difference remains in ledger details. All repeated metric nodes are updated consistently.
-- [ ] Keep all existing functional scenarios and disabled native-only actions; escape user text, preserve once-only draft confirmation and do not accept real credentials.
-- [ ] Run model and browser tests. Review regenerated screenshots for hierarchy, content clipping, neutral expense color and clear scope explanation.
+- [x] Replace the presentation markup/styles as a complete rewrite while preserving model imports and exact money validation.
+- [x] Use neutral grouped surfaces, large Apple-style title, monochrome spending and restrained blue controls. Non-interactive money cards are not disguised as buttons.
+- [x] Move “记一笔” into the header; remove the floating action that covers transactions. Navigation uses labelled icon/text controls with clear current state, not Material selection pills.
+- [x] Use `viewport-fit=cover`, CSS `env(safe-area-inset-*)`, a flex app with `height:100dvh`, and an `overflow:auto` content region. Footer is a normal flex child with actual bottom safe-area padding; no fixed bottom offsets or manually estimated content footer gap.
+- [x] Derive problem-item recovery with the existing totals function over income records in category `问题件销售`; cash difference remains in ledger details. All repeated metric nodes are updated consistently.
+- [x] Keep all existing functional scenarios and disabled native-only actions; escape user text, preserve once-only draft confirmation and do not accept real credentials.
+- [x] Run model and browser tests. Review regenerated screenshots for hierarchy, content clipping, neutral expense color and clear scope explanation.
 
 ## Task 3: Native design synchronization and publish
 
-- [ ] Update foundation plan to CupertinoApp/CupertinoTheme, CupertinoTabBar, explicit single-owner safe areas and keyboard behavior. Update Widget test examples to target Cupertino tabs and synthetic view insets, not Material destinations.
-- [ ] Update product spec and README, retaining the incomplete-app status. Mark the original Material prototype plan as superseded by this revision, not a competing source of truth.
-- [ ] Switch the existing OpenDesign project designSystemId to `apple` through the local version-matched API, update only owned files, verify hashes and actual preview behavior.
-- [ ] Verify format/whitespace, docs consistency, model/browser suites and remote commit equality. Push the existing development branch without merging main.
+- [x] Update foundation plan to CupertinoApp/CupertinoTheme, CupertinoTabBar, explicit single-owner safe areas and keyboard behavior. Update Widget test examples to target Cupertino tabs and synthetic view insets, not Material destinations.
+- [x] Update product spec and README, retaining the incomplete-app status. Mark the original Material prototype plan as superseded by this revision, not a competing source of truth.
+- [x] Switch the existing OpenDesign project designSystemId to `apple` through the local version-matched API, update only owned files, verify hashes and actual preview behavior.
+- [x] Verify format/whitespace, docs consistency, model/browser suites and remote commit equality. Push the existing development branch without merging main.
