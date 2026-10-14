@@ -10,6 +10,13 @@ final class SqliteAggregateGuard {
     await ensureCashBillTotalWithinCap(db);
     await ensureCurrentLiabilitiesWithinCap(db);
     await ensureCourierWalletTotalsWithinCap(db);
+    final consumes = await db.query(
+      'courier_events',
+      columns: ['amount_cents'],
+      where: 'is_void = 0 AND event_type = ?',
+      whereArgs: ['consume'],
+    );
+    Money.sumCents(consumes.map((row) => row['amount_cents']! as int));
   }
 
   static Future<void> ensureCashBillTotalWithinCap(DatabaseExecutor db) async {
@@ -38,6 +45,9 @@ final class SqliteAggregateGuard {
       'purchases',
       columns: ['id', 'original_total_cents', 'effective_total_cents'],
       where: 'is_void = 0',
+    );
+    Money.sumCents(
+      purchases.map((row) => row['effective_total_cents']! as int),
     );
     for (final purchase in purchases) {
       final payments = await db.query(

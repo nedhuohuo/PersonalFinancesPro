@@ -146,6 +146,7 @@ final class SqliteLedgerRepository implements LedgerRepository {
     await _db.transaction((txn) async {
       final payment = await _row(txn, 'purchase_payments', paymentId);
       if (!sqliteBool(payment['is_void'])) return;
+      await _activePurchase(txn, payment['purchase_id']! as int);
       final now = utcNowIso();
       await txn.update(
         'purchase_payments',
@@ -745,6 +746,9 @@ final class SqliteLedgerRepository implements LedgerRepository {
     await _db.transaction((txn) async {
       final adjustment = await _row(txn, 'purchase_adjustments', adjustmentId);
       if (sqliteBool(adjustment['is_void']) == isVoid) return;
+      if (!isVoid) {
+        await _activePurchase(txn, adjustment['purchase_id']! as int);
+      }
       final now = utcNowIso();
       await txn.update(
         'purchase_adjustments',

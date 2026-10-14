@@ -407,13 +407,39 @@ void main() {
       await reveal(tester, history);
       await tester.tap(history);
       await settle(tester);
+      // A void root still permits cleanup, but child activation is root-first.
+      await status(tester, '作废调整 #1');
+      for (final label in ['恢复付款 #1', '恢复调整 #1', '恢复调整 #2']) {
+        await reveal(tester, find.text(label));
+        expect(
+          tester
+              .widget<CupertinoButton>(
+                find.widgetWithText(CupertinoButton, label),
+              )
+              .onPressed,
+          isNull,
+        );
+      }
+      await reveal(tester, find.text('请先恢复采购，再恢复付款或调整。'));
+      expect(find.text('请先恢复采购，再恢复付款或调整。'), findsOneWidget);
       await status(tester, '恢复采购');
+      expect(find.text('请先恢复采购，再恢复付款或调整。'), findsNothing);
+      await status(tester, '恢复付款 #1');
+      await status(tester, '恢复调整 #1');
+      await status(tester, '恢复调整 #2');
+      final restored =
+          (await tester.runAsync(() => h.ledger.getPurchaseDetail(1)))!;
+      expect(restored.purchase.isVoid, isFalse);
+      expect(restored.payments.first.id, d.payments.first.id);
+      expect(restored.payments.first.cashBillId, d.payments.first.cashBillId);
+      expect(restored.payments.first.isVoid, isFalse);
       expect(
-        (await tester.runAsync(
-          () => h.ledger.getPurchaseDetail(1),
-        ))!.purchase.isVoid,
-        isFalse,
+        restored.adjustments.map((a) => a.id),
+        d.adjustments.map((a) => a.id),
       );
+      expect(restored.adjustments.every((a) => !a.isVoid), isTrue);
+      expect(restored.purchase.position.paidNet.cents, 400);
+      expect(restored.purchase.position.effectiveTotal.cents, 1700);
       expect(tester.takeException(), isNull);
     },
   );

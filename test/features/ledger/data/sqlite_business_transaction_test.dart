@@ -8,6 +8,289 @@ import '../../../support/sqlite_ledger_test_harness.dart';
 
 void main() {
   test(
+    'effective purchase cap rejects a second unpaid purchase atomically',
+    () async {
+      final env = await SqliteLedgerTestHarness.open();
+      addTearDown(env.close);
+      await _createPaidCapPurchase(env);
+      final before = await _financialRows(env);
+
+      await expectLater(env.seedPurchase(total: '0.01'), throwsFormatException);
+
+      expect(await _financialRows(env), before);
+      final snapshot = await env.dashboard.loadLedgerDetailSnapshot(
+        startDate: LocalDate.parse('2026-10-01'),
+        endDate: LocalDate.parse('2026-10-31'),
+        scope: const BusinessScope.public(),
+      );
+      expect(snapshot.purchaseEffective.cents, Money.maxCents);
+      expect(snapshot.purchasePaidNet.cents, Money.maxCents);
+      expect(snapshot.purchasePayable.cents, 0);
+      expect(snapshot.cashExpense.cents, Money.maxCents);
+    },
+  );
+
+  test(
+    'effective purchase cap rolls back waiver VOID and root restore',
+    () async {
+      final env = await SqliteLedgerTestHarness.open();
+      addTearDown(env.close);
+      final tinyId = await env.seedPurchase(total: '0.01');
+      await env.ledger.adjustPurchase(
+        PurchaseAdjustmentDraft(
+          purchaseId: tinyId,
+          kind: PurchaseAdjustmentKind.unpaidWaiver,
+          amount: Money.fromCents(1),
+          reason: '全额减免',
+          categoryId: env.unusedExpenseCategoryId,
+        ),
+      );
+      await _createPaidCapPurchase(env);
+      final tinyBefore = await env.ledger.getPurchaseDetail(tinyId);
+      final before = await _financialRows(env);
+
+      await expectLater(
+        env.ledger.voidPurchaseAdjustment(
+          adjustmentId: tinyBefore.adjustments.single.id,
+          reason: '撤销减免',
+        ),
+        throwsFormatException,
+      );
+
+      expect(await _financialRows(env), before);
+      expect(
+        _purchaseProjection(await env.ledger.getPurchaseDetail(tinyId)),
+        _purchaseProjection(tinyBefore),
+      );
+      // Deactivation remains allowed on a void owner; only activation needs it active.
+      await env.ledger.voidPurchaseWithoutActivePayments(
+        purchaseId: tinyId,
+        reason: '作废',
+      );
+      await env.ledger.voidPurchaseAdjustment(
+        adjustmentId: tinyBefore.adjustments.single.id,
+        reason: '清理减免',
+      );
+      final voidBefore = await _financialRows(env);
+      await expectLater(
+        env.ledger.restorePurchase(purchaseId: tinyId, reason: '恢复'),
+        throwsFormatException,
+      );
+      expect(await _financialRows(env), voidBefore);
+      final snapshot = await env.dashboard.loadLedgerDetailSnapshot(
+        startDate: LocalDate.parse('2026-10-01'),
+        endDate: LocalDate.parse('2026-10-31'),
+        scope: const BusinessScope.public(),
+      );
+      expect(snapshot.purchaseEffective.cents, Money.maxCents);
+      expect(snapshot.cashExpense.cents, Money.maxCents);
+    },
+  );
+
+  test(
+    'courier consume cap rejects another consume without cash or timeline changes',
+    () async {
+      final env = await SqliteLedgerTestHarness.open();
+      addTearDown(env.close);
+      final walletId = await env.ledger.createCourierAccount(
+        CourierAccountDraft(
+          name: '消耗满额钱包',
+          openingBalance: Money.fromCents(Money.maxCents),
+          businessDate: LocalDate.parse('2026-10-01'),
+        ),
+      );
+      await env.ledger.recordCourierConsume(
+        CourierConsumeDraft(
+          courierAccountId: walletId,
+          scope: const BusinessScope.public(),
+          businessDate: LocalDate.parse('2026-10-02'),
+          amount: Money.fromCents(Money.maxCents),
+        ),
+      );
+      final topUp = env.courierTopUp(
+        courierAccountId: walletId,
+        scope: const BusinessScope.public(),
+        amount: '0.01',
+      );
+      await env.ledger.recordCourierTopUp(
+        CourierCashEventDraft(
+          courierAccountId: walletId,
+          scope: topUp.scope,
+          businessDate: LocalDate.parse('2026-10-03'),
+          amount: topUp.amount,
+          accountId: topUp.accountId,
+          categoryId: topUp.categoryId,
+        ),
+      );
+      final before = await _financialRows(env);
+      final timeline = await env.ledger.getCourierAccountDetail(walletId);
+
+      await expectLater(
+        env.ledger.recordCourierConsume(
+          CourierConsumeDraft(
+            courierAccountId: walletId,
+            scope: const BusinessScope.public(),
+            businessDate: LocalDate.parse('2026-10-04'),
+            amount: Money.fromCents(1),
+          ),
+        ),
+        throwsFormatException,
+      );
+
+      expect(await _financialRows(env), before);
+      expect(
+        _courierProjection(await env.ledger.getCourierAccountDetail(walletId)),
+        _courierProjection(timeline),
+      );
+      expect(timeline.account.recordedBalance.cents, 1);
+      expect(timeline.events.map((e) => e.balanceAfter.cents), [
+        Money.maxCents,
+        0,
+        1,
+      ]);
+      expect(await env.cashBillCount(), 1);
+      final snapshot = await env.dashboard.loadLedgerDetailSnapshot(
+        startDate: LocalDate.parse('2026-10-01'),
+        endDate: LocalDate.parse('2026-10-31'),
+        scope: const BusinessScope.public(),
+      );
+      expect(snapshot.courierConsume.cents, Money.maxCents);
+      expect(snapshot.courierTopUp.cents, 1);
+      expect(snapshot.cashExpense.cents, 1);
+      expect(snapshot.globalCourierRecordedBalance, isNull);
+    },
+  );
+
+  for (final restorePayment in [true, false]) {
+    test(
+      '${restorePayment ? 'payment' : 'adjustment'} restore requires active purchase root before same-ID activation',
+      () async {
+        final env = await SqliteLedgerTestHarness.open();
+        addTearDown(env.close);
+        final purchaseId = await env.seedPurchase(total: '10', paid: '5');
+        await env.ledger.adjustPurchase(
+          PurchaseAdjustmentDraft(
+            purchaseId: purchaseId,
+            kind: PurchaseAdjustmentKind.unpaidWaiver,
+            amount: Money.parsePositive('1'),
+            reason: '未付减免',
+            categoryId: env.unusedExpenseCategoryId,
+          ),
+        );
+        final original = await env.ledger.getPurchaseDetail(purchaseId);
+        final paymentId = original.payments.single.id;
+        final adjustmentId = original.adjustments.single.id;
+        await env.ledger.voidPurchaseAdjustment(
+          adjustmentId: adjustmentId,
+          reason: '作废',
+        );
+        await env.ledger.voidPurchasePayment(
+          paymentId: paymentId,
+          reason: '作废',
+        );
+        await env.ledger.voidPurchaseWithoutActivePayments(
+          purchaseId: purchaseId,
+          reason: '作废根单',
+        );
+        // Idempotent deactivation must remain safe even when the root is void.
+        await env.ledger.voidPurchasePayment(
+          paymentId: paymentId,
+          reason: '重复作废',
+        );
+        await env.ledger.voidPurchaseAdjustment(
+          adjustmentId: adjustmentId,
+          reason: '重复作废',
+        );
+        final before = await _financialRows(env);
+        final voidDetail = await env.ledger.getPurchaseDetail(purchaseId);
+
+        await expectLater(
+          restorePayment
+              ? env.ledger.restorePurchasePayment(
+                paymentId: paymentId,
+                reason: '先恢复子项',
+              )
+              : env.ledger.restorePurchaseAdjustment(
+                adjustmentId: adjustmentId,
+                reason: '先恢复子项',
+              ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'root prerequisite',
+              '采购已作废',
+            ),
+          ),
+        );
+
+        expect(await _financialRows(env), before);
+        expect(
+          _purchaseProjection(await env.ledger.getPurchaseDetail(purchaseId)),
+          _purchaseProjection(voidDetail),
+        );
+        final snapshot = await env.dashboard.loadLedgerDetailSnapshot(
+          startDate: LocalDate.parse('2026-10-01'),
+          endDate: LocalDate.parse('2026-10-31'),
+        );
+        expect(snapshot.purchaseEffective.cents, 0);
+        expect(snapshot.cashExpense.cents, 0);
+        await env.ledger.restorePurchase(
+          purchaseId: purchaseId,
+          reason: '先恢复根单',
+        );
+        if (restorePayment) {
+          await env.ledger.restorePurchasePayment(
+            paymentId: paymentId,
+            reason: '再恢复付款',
+          );
+        } else {
+          await env.ledger.restorePurchaseAdjustment(
+            adjustmentId: adjustmentId,
+            reason: '再恢复减免',
+          );
+        }
+        final after = await env.ledger.getPurchaseDetail(purchaseId);
+        expect(after.purchase.isVoid, isFalse);
+        expect(after.payments.single.id, paymentId);
+        expect(
+          after.payments.single.cashBillId,
+          original.payments.single.cashBillId,
+        );
+        expect(after.payments.single.isVoid, !restorePayment);
+        expect(after.adjustments.single.id, adjustmentId);
+        expect(after.adjustments.single.isVoid, restorePayment);
+        expect(
+          after.purchase.position.effectiveTotal.cents,
+          restorePayment ? 1000 : 900,
+        );
+        expect(after.purchase.position.paidNet.cents, restorePayment ? 500 : 0);
+        final cash =
+            (await env.cashBills.listCashBills(
+              const CashBillFilter(includeVoid: true),
+            )).single;
+        expect(cash.id, original.payments.single.cashBillId);
+        expect(cash.isVoid, !restorePayment);
+        final rowsAfter = await _financialRows(env);
+        for (final table in [
+          'purchases',
+          'purchase_payments',
+          'purchase_adjustments',
+          'cash_bills',
+        ]) {
+          expect(
+            rowsAfter[table]!.map((r) => [r['id'], r['created_at_utc']]),
+            before[table]!.map((r) => [r['id'], r['created_at_utc']]),
+          );
+        }
+        expect(
+          await env.auditLogCount(),
+          before['audit_logs']!.length + (restorePayment ? 3 : 2),
+        );
+      },
+    );
+  }
+
+  test(
     'purchase creation with initial payment writes one linked cash expense atomically',
     () async {
       final env = await SqliteLedgerTestHarness.open();
@@ -676,4 +959,44 @@ Map<String, Object?> _cashProjection(CashBill bill) => {
   'linkedType': bill.linkedType?.name,
   'linkedId': bill.linkedId,
   'isVoid': bill.isVoid,
+};
+
+Future<int> _createPaidCapPurchase(SqliteLedgerTestHarness env) async {
+  final supplier = await env.createParty(
+    name: '有效采购满额厂家',
+    kind: PartyKind.supplier,
+  );
+  return env.ledger.createPurchase(
+    PurchaseDraft(
+      supplierId: supplier.id,
+      scope: const BusinessScope.public(),
+      businessDate: LocalDate.parse('2026-10-14'),
+      items: [
+        PurchaseItemDraft(
+          description: '满额采购',
+          quantity: 1,
+          unitPrice: Money.fromCents(Money.maxCents),
+        ),
+      ],
+      supplierFreight: Money.zero,
+    ),
+    initialPayment: env.purchasePayment(amount: '90000000000000'),
+  );
+}
+
+Future<Map<String, List<Map<String, Object?>>>> _financialRows(
+  SqliteLedgerTestHarness env,
+) async => {
+  for (final table in [
+    'purchases',
+    'purchase_items',
+    'purchase_payments',
+    'purchase_adjustments',
+    'supplier_opening_debts',
+    'courier_accounts',
+    'courier_events',
+    'cash_bills',
+    'audit_logs',
+  ])
+    table: await env.database.query(table, orderBy: 'id ASC'),
 };

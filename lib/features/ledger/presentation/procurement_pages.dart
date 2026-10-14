@@ -610,6 +610,7 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
                             reason: reason,
                           ),
             ),
+            if (p.isVoid) const Text('请先恢复采购，再恢复付款或调整。'),
             for (final payment in purchase!.payments)
               InfoCard(
                 title:
@@ -618,25 +619,31 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
                 child: Column(
                   children: [
                     ...cashLink(payment.cashBillId),
-                    LedgerStatusButton(
-                      label:
-                          payment.isVoid
-                              ? '恢复付款 #${payment.id}'
-                              : '作废付款 #${payment.id}',
-                      mutation: mutation,
-                      reload: load,
-                      write:
-                          (reason) =>
-                              payment.isVoid
-                                  ? ledger.restorePurchasePayment(
-                                    paymentId: payment.id,
-                                    reason: reason,
-                                  )
-                                  : ledger.voidPurchasePayment(
-                                    paymentId: payment.id,
-                                    reason: reason,
-                                  ),
-                    ),
+                    if (p.isVoid && payment.isVoid)
+                      CupertinoButton(
+                        onPressed: null,
+                        child: Text('恢复付款 #${payment.id}'),
+                      )
+                    else
+                      LedgerStatusButton(
+                        label:
+                            payment.isVoid
+                                ? '恢复付款 #${payment.id}'
+                                : '作废付款 #${payment.id}',
+                        mutation: mutation,
+                        reload: load,
+                        write:
+                            (reason) =>
+                                payment.isVoid
+                                    ? ledger.restorePurchasePayment(
+                                      paymentId: payment.id,
+                                      reason: reason,
+                                    )
+                                    : ledger.voidPurchasePayment(
+                                      paymentId: payment.id,
+                                      reason: reason,
+                                    ),
+                      ),
                   ],
                 ),
               ),
@@ -649,25 +656,31 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
                   children: [
                     if (adjustment.cashBillId != null)
                       ...cashLink(adjustment.cashBillId!),
-                    LedgerStatusButton(
-                      label:
-                          adjustment.isVoid
-                              ? '恢复调整 #${adjustment.id}'
-                              : '作废调整 #${adjustment.id}',
-                      mutation: mutation,
-                      reload: load,
-                      write:
-                          (reason) =>
-                              adjustment.isVoid
-                                  ? ledger.restorePurchaseAdjustment(
-                                    adjustmentId: adjustment.id,
-                                    reason: reason,
-                                  )
-                                  : ledger.voidPurchaseAdjustment(
-                                    adjustmentId: adjustment.id,
-                                    reason: reason,
-                                  ),
-                    ),
+                    if (p.isVoid && adjustment.isVoid)
+                      CupertinoButton(
+                        onPressed: null,
+                        child: Text('恢复调整 #${adjustment.id}'),
+                      )
+                    else
+                      LedgerStatusButton(
+                        label:
+                            adjustment.isVoid
+                                ? '恢复调整 #${adjustment.id}'
+                                : '作废调整 #${adjustment.id}',
+                        mutation: mutation,
+                        reload: load,
+                        write:
+                            (reason) =>
+                                adjustment.isVoid
+                                    ? ledger.restorePurchaseAdjustment(
+                                      adjustmentId: adjustment.id,
+                                      reason: reason,
+                                    )
+                                    : ledger.voidPurchaseAdjustment(
+                                      adjustmentId: adjustment.id,
+                                      reason: reason,
+                                    ),
+                      ),
                   ],
                 ),
               ),
