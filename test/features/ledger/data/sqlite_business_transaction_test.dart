@@ -270,14 +270,22 @@ void main() {
     () async {
       final env = await SqliteLedgerTestHarness.open();
       addTearDown(env.close);
+      final shop = await env.createShop('重开店铺');
+      final scopedShop = BusinessScope.shop(shop.id);
       final supplier = await env.createParty(
         name: '重开厂家',
         kind: PartyKind.supplier,
       );
+      final paymentAccount = await env.createAccount('重开付款账户');
+      final paymentCategory = await env.createCategory(
+        name: '重开厂家付款',
+        direction: CashDirection.expense,
+      );
+      final refundAccount = await env.createAccount('重开退款账户');
       final purchaseId = await env.ledger.createPurchase(
         PurchaseDraft(
           supplierId: supplier.id,
-          scope: const BusinessScope.public(),
+          scope: scopedShop,
           businessDate: LocalDate.parse('2026-10-10'),
           items: [
             PurchaseItemDraft(
@@ -287,8 +295,15 @@ void main() {
             ),
           ],
           supplierFreight: Money.parsePositive('3'),
+          note: '重开采购备注',
         ),
-        initialPayment: env.purchasePayment(amount: '20'),
+        initialPayment: PurchasePaymentDraft(
+          businessDate: LocalDate.parse('2026-10-14'),
+          amount: Money.parsePositive('20'),
+          accountId: paymentAccount.id,
+          categoryId: paymentCategory.id,
+          note: '重开付款',
+        ),
       );
       await env.ledger.adjustPurchase(
         PurchaseAdjustmentDraft(
@@ -297,17 +312,26 @@ void main() {
           amount: Money.parsePositive('5'),
           reason: '重开退款',
           categoryId: env.resaleIncomeCategoryId,
-          accountId: (await env.createAccount('重开退款账户')).id,
+          accountId: refundAccount.id,
           businessDate: LocalDate.parse('2026-10-11'),
         ),
+      );
+      final adjustmentId =
+          (await env.ledger.getPurchaseDetail(
+            purchaseId,
+          )).adjustments.single.id;
+      await env.ledger.voidPurchaseAdjustment(
+        adjustmentId: adjustmentId,
+        reason: '重开退款作废',
       );
 
       final buyer = await env.createParty(name: '重开买家', kind: PartyKind.buyer);
       final feeAccount = await env.createAccount('重开费用账户');
       final incomeAccount = await env.createAccount('重开收入账户');
+      final channelId = (await env.catalog.listResaleChannels()).first.id;
       final resaleId = await env.ledger.createProblemResale(
         ProblemResaleDraft(
-          scope: const BusinessScope.public(),
+          scope: scopedShop,
           businessDate: LocalDate.parse('2026-10-12'),
           description: '重开问题件',
           quantity: 1,
@@ -315,13 +339,14 @@ void main() {
           incomeAccountId: incomeAccount.id,
           incomeCategoryId: env.resaleIncomeCategoryId,
           buyerId: buyer.id,
-          channelId: (await env.catalog.listResaleChannels()).first.id,
-          issueNote: '重开',
+          channelId: channelId,
+          issueNote: '重开问题说明',
           fees: [
             ProblemResaleFeeDraft(
               categoryId: env.unusedExpenseCategoryId,
               accountId: feeAccount.id,
               amount: Money.parsePositive('4'),
+              note: '重开费用',
             ),
           ],
         ),
@@ -334,60 +359,188 @@ void main() {
         ),
       );
       await env.ledger.recordCourierTopUp(
-        env.courierTopUp(
+        CourierCashEventDraft(
           courierAccountId: courierId,
-          scope: const BusinessScope.public(),
-          amount: '5',
+          scope: scopedShop,
+          businessDate: LocalDate.parse('2026-10-02'),
+          amount: Money.parsePositive('5'),
+          accountId: paymentAccount.id,
+          categoryId: paymentCategory.id,
+          note: '重开充值',
         ),
       );
+      final topUpId =
+          (await env.ledger.getCourierAccountDetail(courierId)).events
+              .singleWhere((event) => event.eventType == CourierEventType.topUp)
+              .id;
+      await env.ledger.voidCourierEvent(eventId: topUpId, reason: '重开充值作废');
       await env.ledger.recordCourierConsume(
         CourierConsumeDraft(
           courierAccountId: courierId,
-          scope: const BusinessScope.public(),
+          scope: scopedShop,
           businessDate: LocalDate.parse('2026-10-13'),
           amount: Money.parsePositive('3'),
+          note: '重开消耗',
         ),
       );
       final purchaseBefore = await env.ledger.getPurchaseDetail(purchaseId);
       final resaleBefore = await env.ledger.getProblemResaleDetail(resaleId);
       final courierBefore = await env.ledger.getCourierAccountDetail(courierId);
+      final cashBefore = await env.cashBills.listCashBills(
+        const CashBillFilter(includeVoid: true),
+      );
 
       await env.closeAndReopen();
 
       final purchaseAfter = await env.ledger.getPurchaseDetail(purchaseId);
       final resaleAfter = await env.ledger.getProblemResaleDetail(resaleId);
       final courierAfter = await env.ledger.getCourierAccountDetail(courierId);
-      expect(purchaseAfter.items.single.id, purchaseBefore.items.single.id);
-      expect(
-        purchaseAfter.payments.single.cashBillId,
-        purchaseBefore.payments.single.cashBillId,
+      final cashAfter = await env.cashBills.listCashBills(
+        const CashBillFilter(includeVoid: true),
       );
-      expect(
-        purchaseAfter.adjustments.single.cashBillId,
-        purchaseBefore.adjustments.single.cashBillId,
+      final purchasePaymentCash = cashAfter.singleWhere(
+        (bill) => bill.id == purchaseAfter.payments.single.cashBillId,
       );
+      final purchaseRefundCash = cashAfter.singleWhere(
+        (bill) => bill.id == purchaseAfter.adjustments.single.cashBillId,
+      );
+      final resaleIncomeCash = cashAfter.singleWhere(
+        (bill) => bill.id == resaleAfter.resale.incomeCashBillId,
+      );
+      final resaleFeeCash = cashAfter.singleWhere(
+        (bill) => bill.id == resaleAfter.fees.single.cashBillId,
+      );
+      final courierTopUpAfter = courierAfter.events.singleWhere(
+        (event) => event.eventType == CourierEventType.topUp,
+      );
+      final courierConsumeAfter = courierAfter.events.singleWhere(
+        (event) => event.eventType == CourierEventType.consume,
+      );
+      final courierTopUpCash = cashAfter.singleWhere(
+        (bill) => bill.id == courierTopUpAfter.cashBillId,
+      );
+
+      expect(
+        _purchaseProjection(purchaseAfter),
+        _purchaseProjection(purchaseBefore),
+      );
+      expect(_resaleProjection(resaleAfter), _resaleProjection(resaleBefore));
+      expect(
+        _courierProjection(courierAfter),
+        _courierProjection(courierBefore),
+      );
+      expect(cashAfter.map(_cashProjection), cashBefore.map(_cashProjection));
+
+      expect(purchaseAfter.purchase.id, purchaseId);
+      expect(purchaseAfter.purchase.supplierId, supplier.id);
+      expect(purchaseAfter.purchase.scope.type, BusinessScopeType.shop);
+      expect(purchaseAfter.purchase.scope.shopId, shop.id);
+      expect(purchaseAfter.purchase.businessDate.value, '2026-10-10');
+      expect(purchaseAfter.purchase.originalTotal.cents, 2300);
+      expect(purchaseAfter.purchase.supplierFreight.cents, 300);
+      expect(purchaseAfter.purchase.note, '重开采购备注');
+      expect(purchaseAfter.purchase.isVoid, isFalse);
+      expect(purchaseAfter.purchase.position.effectiveTotal.cents, 2300);
+      expect(purchaseAfter.purchase.position.paidNet.cents, 2000);
       expect(purchaseAfter.purchase.position.payable.cents, 300);
+      expect(purchaseAfter.items.single.description, '重开发夹');
+      expect(purchaseAfter.items.single.quantity, 2);
+      expect(purchaseAfter.items.single.unitPrice.cents, 1000);
+      expect(purchaseAfter.items.single.lineTotal.cents, 2000);
+      expect(purchaseAfter.payments.single.purchaseId, purchaseId);
+      expect(purchaseAfter.payments.single.amount.cents, 2000);
+      expect(purchaseAfter.payments.single.isVoid, isFalse);
+      expect(purchaseAfter.adjustments.single.purchaseId, purchaseId);
       expect(
-        resaleAfter.resale.incomeCashBillId,
-        resaleBefore.resale.incomeCashBillId,
+        purchaseAfter.adjustments.single.kind,
+        PurchaseAdjustmentKind.paidRefund,
       );
+      expect(purchaseAfter.adjustments.single.amount.cents, 500);
+      expect(purchaseAfter.adjustments.single.reason, '重开退款');
+      expect(purchaseAfter.adjustments.single.isVoid, isTrue);
+      expect(purchasePaymentCash.businessDate.value, '2026-10-14');
+      expect(purchasePaymentCash.direction, CashDirection.expense);
+      expect(purchasePaymentCash.amount.cents, 2000);
+      expect(purchasePaymentCash.scope.shopId, shop.id);
+      expect(purchasePaymentCash.accountId, paymentAccount.id);
+      expect(purchasePaymentCash.partyId, supplier.id);
       expect(
-        resaleAfter.fees.single.cashBillId,
-        resaleBefore.fees.single.cashBillId,
+        purchasePaymentCash.businessOrigin,
+        BusinessOrigin.purchasePayment,
       );
+      expect(purchasePaymentCash.linkedType, LinkedBillType.purchasePayment);
+      expect(purchasePaymentCash.linkedId, purchaseId);
+      expect(purchasePaymentCash.isVoid, isFalse);
+      expect(purchaseRefundCash.direction, CashDirection.income);
+      expect(purchaseRefundCash.amount.cents, 500);
+      expect(purchaseRefundCash.accountId, refundAccount.id);
+      expect(purchaseRefundCash.businessOrigin, BusinessOrigin.supplierRefund);
+      expect(purchaseRefundCash.linkedType, LinkedBillType.supplierRefund);
+      expect(purchaseRefundCash.linkedId, purchaseId);
+      expect(purchaseRefundCash.isVoid, isTrue);
+
+      expect(resaleAfter.resale.id, resaleId);
+      expect(resaleAfter.resale.scope.shopId, shop.id);
+      expect(resaleAfter.resale.businessDate.value, '2026-10-12');
+      expect(resaleAfter.resale.description, '重开问题件');
+      expect(resaleAfter.resale.quantity, 1);
+      expect(resaleAfter.resale.incomeAmount.cents, 3000);
+      expect(resaleAfter.resale.buyerId, buyer.id);
+      expect(resaleAfter.resale.channelId, channelId);
+      expect(resaleAfter.resale.issueNote, '重开问题说明');
+      expect(resaleAfter.resale.isVoid, isFalse);
+      expect(resaleAfter.fees.single.categoryId, env.unusedExpenseCategoryId);
       expect(resaleAfter.fees.single.accountId, feeAccount.id);
+      expect(resaleAfter.fees.single.amount.cents, 400);
       expect(resaleAfter.netRecovery.cents, 2600);
-      expect(courierAfter.account.recordedBalance.cents, 2200);
-      expect(
-        courierAfter.events.map((event) => event.id),
-        courierBefore.events.map((event) => event.id),
-      );
-      expect(
-        courierAfter.events.any(
-          (event) => event.eventType == CourierEventType.consume,
-        ),
-        isTrue,
-      );
+      expect(resaleIncomeCash.direction, CashDirection.income);
+      expect(resaleIncomeCash.businessOrigin, BusinessOrigin.resaleIncome);
+      expect(resaleIncomeCash.linkedType, LinkedBillType.problemResaleIncome);
+      expect(resaleIncomeCash.linkedId, resaleId);
+      expect(resaleIncomeCash.accountId, incomeAccount.id);
+      expect(resaleIncomeCash.amount.cents, 3000);
+      expect(resaleIncomeCash.isVoid, isFalse);
+      expect(resaleFeeCash.direction, CashDirection.expense);
+      expect(resaleFeeCash.businessOrigin, BusinessOrigin.resaleFee);
+      expect(resaleFeeCash.linkedType, LinkedBillType.problemResaleFee);
+      expect(resaleFeeCash.linkedId, resaleId);
+      expect(resaleFeeCash.accountId, feeAccount.id);
+      expect(resaleFeeCash.amount.cents, 400);
+      expect(resaleFeeCash.isVoid, isFalse);
+
+      expect(courierAfter.account.id, courierId);
+      expect(courierAfter.account.name, '重开快递');
+      expect(courierAfter.account.isActive, isTrue);
+      expect(courierAfter.account.recordedBalance.cents, 1700);
+      expect(courierAfter.events, hasLength(3));
+      expect(courierAfter.events[0].eventType, CourierEventType.opening);
+      expect(courierAfter.events[0].scope, isNull);
+      expect(courierAfter.events[0].businessDate.value, '2026-10-01');
+      expect(courierAfter.events[0].amount.cents, 2000);
+      expect(courierAfter.events[0].cashBillId, isNull);
+      expect(courierAfter.events[0].balanceAfter.cents, 2000);
+      expect(courierAfter.events[0].isVoid, isFalse);
+      expect(courierTopUpAfter.courierAccountId, courierId);
+      expect(courierTopUpAfter.scope!.shopId, shop.id);
+      expect(courierTopUpAfter.businessDate.value, '2026-10-02');
+      expect(courierTopUpAfter.amount.cents, 500);
+      expect(courierTopUpAfter.balanceAfter.cents, 2000);
+      expect(courierTopUpAfter.note, '重开充值');
+      expect(courierTopUpAfter.isVoid, isTrue);
+      expect(courierTopUpCash.businessOrigin, BusinessOrigin.courierTopUp);
+      expect(courierTopUpCash.linkedType, LinkedBillType.courierTopUp);
+      expect(courierTopUpCash.linkedId, courierId);
+      expect(courierTopUpCash.amount.cents, 500);
+      expect(courierTopUpCash.scope.shopId, shop.id);
+      expect(courierTopUpCash.isVoid, isTrue);
+      expect(courierConsumeAfter.courierAccountId, courierId);
+      expect(courierConsumeAfter.scope!.shopId, shop.id);
+      expect(courierConsumeAfter.businessDate.value, '2026-10-13');
+      expect(courierConsumeAfter.amount.cents, 300);
+      expect(courierConsumeAfter.cashBillId, isNull);
+      expect(courierConsumeAfter.balanceAfter.cents, 1700);
+      expect(courierConsumeAfter.note, '重开消耗');
+      expect(courierConsumeAfter.isVoid, isFalse);
     },
   );
 
@@ -404,3 +557,123 @@ void main() {
     },
   );
 }
+
+Map<String, Object?> _purchaseProjection(PurchaseDetail detail) => {
+  'purchase': {
+    'id': detail.purchase.id,
+    'supplierId': detail.purchase.supplierId,
+    'scopeType': detail.purchase.scope.type.name,
+    'shopId': detail.purchase.scope.shopId,
+    'businessDate': detail.purchase.businessDate.value,
+    'originalTotal': detail.purchase.originalTotal.cents,
+    'supplierFreight': detail.purchase.supplierFreight.cents,
+    'note': detail.purchase.note,
+    'isVoid': detail.purchase.isVoid,
+    'effectiveTotal': detail.purchase.position.effectiveTotal.cents,
+    'paidNet': detail.purchase.position.paidNet.cents,
+    'payable': detail.purchase.position.payable.cents,
+  },
+  'items': [
+    for (final item in detail.items)
+      {
+        'id': item.id,
+        'description': item.description,
+        'quantity': item.quantity,
+        'unitPrice': item.unitPrice.cents,
+        'lineTotal': item.lineTotal.cents,
+      },
+  ],
+  'payments': [
+    for (final payment in detail.payments)
+      {
+        'id': payment.id,
+        'purchaseId': payment.purchaseId,
+        'cashBillId': payment.cashBillId,
+        'amount': payment.amount.cents,
+        'isVoid': payment.isVoid,
+      },
+  ],
+  'adjustments': [
+    for (final adjustment in detail.adjustments)
+      {
+        'id': adjustment.id,
+        'purchaseId': adjustment.purchaseId,
+        'kind': adjustment.kind.name,
+        'amount': adjustment.amount.cents,
+        'cashBillId': adjustment.cashBillId,
+        'reason': adjustment.reason,
+        'isVoid': adjustment.isVoid,
+      },
+  ],
+};
+
+Map<String, Object?> _resaleProjection(ProblemResaleDetail detail) => {
+  'resale': {
+    'id': detail.resale.id,
+    'scopeType': detail.resale.scope.type.name,
+    'shopId': detail.resale.scope.shopId,
+    'businessDate': detail.resale.businessDate.value,
+    'description': detail.resale.description,
+    'quantity': detail.resale.quantity,
+    'incomeAmount': detail.resale.incomeAmount.cents,
+    'incomeCashBillId': detail.resale.incomeCashBillId,
+    'buyerId': detail.resale.buyerId,
+    'channelId': detail.resale.channelId,
+    'issueNote': detail.resale.issueNote,
+    'isVoid': detail.resale.isVoid,
+  },
+  'fees': [
+    for (final fee in detail.fees)
+      {
+        'id': fee.id,
+        'cashBillId': fee.cashBillId,
+        'categoryId': fee.categoryId,
+        'accountId': fee.accountId,
+        'amount': fee.amount.cents,
+      },
+  ],
+  'netRecovery': detail.netRecovery.cents,
+};
+
+Map<String, Object?> _courierProjection(CourierAccountDetail detail) => {
+  'account': {
+    'id': detail.account.id,
+    'name': detail.account.name,
+    'isActive': detail.account.isActive,
+    'recordedBalance': detail.account.recordedBalance.cents,
+  },
+  'events': [
+    for (final event in detail.events)
+      {
+        'id': event.id,
+        'courierAccountId': event.courierAccountId,
+        'scopeType': event.scope?.type.name,
+        'shopId': event.scope?.shopId,
+        'businessDate': event.businessDate.value,
+        'eventType': event.eventType.name,
+        'amount': event.amount.cents,
+        'cashBillId': event.cashBillId,
+        'balanceAfter': event.balanceAfter.cents,
+        'note': event.note,
+        'isVoid': event.isVoid,
+      },
+  ],
+};
+
+Map<String, Object?> _cashProjection(CashBill bill) => {
+  'id': bill.id,
+  'businessDate': bill.businessDate.value,
+  'direction': bill.direction.name,
+  'amount': bill.amount.cents,
+  'scopeType': bill.scope.type.name,
+  'shopId': bill.scope.shopId,
+  'categoryId': bill.categoryId,
+  'accountId': bill.accountId,
+  'partyId': bill.partyId,
+  'note': bill.note,
+  'entrySource': bill.entrySource.name,
+  'businessOrigin': bill.businessOrigin.name,
+  'linkedType': bill.linkedType?.name,
+  'linkedId': bill.linkedId,
+  'isVoid': bill.isVoid,
+};
