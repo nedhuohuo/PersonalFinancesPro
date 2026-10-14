@@ -13,6 +13,22 @@ final class Money {
     return Money._(cents);
   }
 
+  static Money checkedProduct({
+    required int quantity,
+    required Money unitPrice,
+  }) {
+    final value = BigInt.from(quantity) * BigInt.from(unitPrice.cents);
+    return _fromCappedBigInt(value);
+  }
+
+  static Money sumCents(Iterable<int> centsValues) {
+    final value = centsValues.fold<BigInt>(
+      BigInt.zero,
+      (sum, cents) => sum + BigInt.from(cents),
+    );
+    return _fromCappedBigInt(value);
+  }
+
   factory Money.parsePositive(String input) {
     final match = RegExp(r'^(\d+)(?:\.(\d{1,2}))?$').firstMatch(input.trim());
     if (match == null) {
@@ -29,6 +45,13 @@ final class Money {
   }
 
   Money add(Money other) => Money.fromCents(cents + other.cents);
+
+  static Money _fromCappedBigInt(BigInt value) {
+    if (value < BigInt.from(-maxCents) || value > BigInt.from(maxCents)) {
+      throw const FormatException('金额超出允许范围');
+    }
+    return Money._(value.toInt());
+  }
 
   String format() {
     final digits = cents.abs().toString().padLeft(3, '0');
