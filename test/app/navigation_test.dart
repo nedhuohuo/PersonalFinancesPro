@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:personal_finances_pro/app/app.dart';
+
+import '../support/widget_test_app.dart';
 
 void main() {
   void resetWindowAfter(WidgetTester tester) {
@@ -41,31 +42,29 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('four-entry navigation preserves honest feature states', (
+  testWidgets('four-entry navigation renders persisted ledger states', (
     tester,
   ) async {
-    await tester.pumpWidget(const ShopLedgerApp());
-    await tester.pumpAndSettle();
+    await pumpLedgerAppWithRepositories(tester, FakeAppRepositories.empty());
     expect(find.text('平台外经营账本'), findsOneWidget);
+    expect(find.text('本月实付支出'), findsOneWidget);
+    expect(find.text('0.00'), findsWidgets);
     await tapTab(tester, '账本');
-    expect(find.text('还没有账目'), findsOneWidget);
+    expect(find.text('新增现金账'), findsOneWidget);
     await tapTab(tester, 'AI记账');
     expect(find.text('AI功能尚未接入'), findsOneWidget);
     await tapTab(tester, '设置');
     expect(find.text('数据保存在本机'), findsOneWidget);
   });
 
-  testWidgets('tabs and honest routes render in light and dark modes', (
-    tester,
-  ) async {
+  testWidgets('tabs and routes render in light and dark modes', (tester) async {
     for (final brightness in Brightness.values) {
       await setSurface(tester, brightness: brightness);
-      await tester.pumpWidget(const ShopLedgerApp());
-      await tester.pumpAndSettle();
+      await pumpLedgerAppWithRepositories(tester, FakeAppRepositories.empty());
       expect(find.byType(CupertinoTabBar), findsOneWidget);
-      expect(find.text('平台外经营账本'), findsOneWidget);
+      expect(find.text('本月实付支出'), findsOneWidget);
       await tapTab(tester, '账本');
-      expect(find.text('还没有账目'), findsOneWidget);
+      expect(find.text('新增现金账'), findsOneWidget);
       await tapTab(tester, 'AI记账');
       expect(find.text('AI功能尚未接入'), findsOneWidget);
       await tapTab(tester, '设置');
@@ -80,9 +79,16 @@ void main() {
   ) async {
     for (final width in [320.0, 390.0, 430.0]) {
       await setSurface(tester, width: width, textScale: 1.5);
-      await tester.pumpWidget(const ShopLedgerApp());
-      await tester.pumpAndSettle();
+      await pumpLedgerAppWithRepositories(tester, FakeAppRepositories.empty());
       expect(find.byType(CupertinoTabBar), findsOneWidget);
+      await tapTab(tester, '账本');
+      await tester.tap(find.text('新增现金账'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -520));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cash-save-button')), findsWidgets);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await tapTab(tester, 'AI记账');
       final sendRect = tester.getRect(
         find.byKey(const ValueKey('ai-send-button')),
@@ -101,6 +107,33 @@ void main() {
     }
   });
 
+  testWidgets('cash tap entry save writes through injected repository', (
+    tester,
+  ) async {
+    final cashBills = RecordingCashBillRepository();
+    final repositories = FakeAppRepositories(
+      catalog: RecordingCatalogRepository(),
+      cashBills: cashBills,
+      ledger: RecordingLedgerRepository(),
+      dashboard: RecordingDashboardRepository(cashBills: cashBills),
+    );
+    await pumpLedgerAppWithRepositories(tester, repositories);
+    await tapTab(tester, '账本');
+    await tester.tap(find.text('新增现金账'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(CupertinoTextField, '金额'),
+      '12.34',
+    );
+    await tester.drag(find.byType(ListView).last, const Offset(0, -520));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存').last);
+    await tester.pumpAndSettle();
+
+    expect(cashBills.createCashBillCalls, 1);
+    expect(find.textContaining('12.34'), findsWidgets);
+  });
+
   testWidgets('safe areas keep content and tab hits outside system regions', (
     tester,
   ) async {
@@ -110,8 +143,7 @@ void main() {
       const FakeViewPadding(top: 54, bottom: 34),
     ]) {
       await setSurface(tester, padding: insets);
-      await tester.pumpWidget(const ShopLedgerApp());
-      await tester.pumpAndSettle();
+      await pumpLedgerAppWithRepositories(tester, FakeAppRepositories.empty());
 
       expect(
         tester.getTopLeft(find.text('平台外经营账本')).dy,
@@ -152,8 +184,7 @@ void main() {
         padding: const FakeViewPadding(bottom: 34),
         viewPadding: const FakeViewPadding(bottom: 34),
       );
-      await tester.pumpWidget(const ShopLedgerApp());
-      await tester.pumpAndSettle();
+      await pumpLedgerAppWithRepositories(tester, FakeAppRepositories.empty());
       await tapTab(tester, 'AI记账');
 
       tester.view.padding = FakeViewPadding.zero;

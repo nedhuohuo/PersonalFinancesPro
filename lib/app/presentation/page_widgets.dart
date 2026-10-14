@@ -77,6 +77,7 @@ class AppSliverPage extends StatelessWidget {
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
+            transitionBetweenRoutes: false,
             middle: Text(compactTitle ?? title),
             largeTitle: Text(title),
           ),
