@@ -38,6 +38,76 @@ void main() {
   );
 
   test(
+    'cash aggregate cap is enforced per direction, not combined gross movement',
+    () async {
+      final env = await SqliteLedgerTestHarness.open();
+      addTearDown(env.close);
+      final account = await env.createAccount('测试账户K');
+      final expenseCategory = await env.createCategory(
+        name: '测试支出K',
+        direction: CashDirection.expense,
+      );
+      final incomeCategory = await env.createCategory(
+        name: '测试收入K',
+        direction: CashDirection.income,
+      );
+
+      await env.cashBills.createCashBill(
+        CashBillDraft(
+          businessDate: LocalDate.parse('2026-10-14'),
+          direction: CashDirection.expense,
+          amount: Money.fromCents(Money.maxCents),
+          scope: const BusinessScope.public(),
+          categoryId: expenseCategory.id,
+          accountId: account.id,
+        ),
+      );
+      await env.cashBills.createCashBill(
+        CashBillDraft(
+          businessDate: LocalDate.parse('2026-10-14'),
+          direction: CashDirection.income,
+          amount: Money.fromCents(Money.maxCents),
+          scope: const BusinessScope.public(),
+          categoryId: incomeCategory.id,
+          accountId: account.id,
+        ),
+      );
+
+      expect(await env.cashBillCount(), 2);
+      expect(await env.auditLogCount(), 2);
+
+      await expectLater(
+        env.cashBills.createCashBill(
+          CashBillDraft(
+            businessDate: LocalDate.parse('2026-10-14'),
+            direction: CashDirection.expense,
+            amount: Money.fromCents(1),
+            scope: const BusinessScope.public(),
+            categoryId: expenseCategory.id,
+            accountId: account.id,
+          ),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+      await expectLater(
+        env.cashBills.createCashBill(
+          CashBillDraft(
+            businessDate: LocalDate.parse('2026-10-14'),
+            direction: CashDirection.income,
+            amount: Money.fromCents(1),
+            scope: const BusinessScope.public(),
+            categoryId: incomeCategory.id,
+            accountId: account.id,
+          ),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+      expect(await env.cashBillCount(), 2);
+      expect(await env.auditLogCount(), 2);
+    },
+  );
+
+  test(
     'create rollback keeps cash row and audit out when aggregate cap is exceeded',
     () async {
       final env = await SqliteLedgerTestHarness.open();

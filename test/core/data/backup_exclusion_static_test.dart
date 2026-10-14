@@ -61,4 +61,27 @@ void main() {
       expect(appDelegate, contains('ledger'));
     },
   );
+
+  test('iOS plugin wiring uses portable Flutter/CocoaPods source config', () {
+    final podfile = File('ios/Podfile').readAsStringSync();
+    expect(podfile, contains('Generated.xcconfig'));
+    expect(podfile, contains('flutter_ios_podfile_setup'));
+    expect(podfile, contains('flutter_install_all_ios_pods'));
+    expect(podfile, isNot(contains('/Users/')));
+
+    final debug = File('ios/Flutter/Debug.xcconfig').readAsStringSync();
+    final release = File('ios/Flutter/Release.xcconfig').readAsStringSync();
+    expect(
+      debug,
+      contains(
+        '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"',
+      ),
+    );
+    expect(
+      release,
+      contains(
+        '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"',
+      ),
+    );
+  });
 }

@@ -771,6 +771,8 @@ git commit -m "feat: define local ledger domain contract"
 - Create: `android/app/src/main/res/xml/backup_rules.xml`
 - Create: `android/app/src/main/res/xml/data_extraction_rules.xml`
 - Modify: `ios/Runner/AppDelegate.swift`
+- Create: `ios/Podfile`
+- Modify: `ios/Flutter/Debug.xcconfig`, `ios/Flutter/Release.xcconfig`
 - Create: `test/support/sqlite_ledger_test_harness.dart`
 - Test: `test/core/data/ledger_privacy_test.dart`
 - Test: `test/core/data/ledger_schema_test.dart`
@@ -953,7 +955,7 @@ android:dataExtractionRules="@xml/data_extraction_rules"
 </data-extraction-rules>
 ```
 
-`ios/Runner/AppDelegate.swift` registers the channel, creates `Application Support/ledger`, sets `URLResourceKey.isExcludedFromBackupKey`, reads that exact directory's value back, resolves the path, and returns `{'path': path, 'backupExcludedVerified': true}` only when readback is true.
+`ios/Runner/AppDelegate.swift` registers the channel, creates `Application Support/ledger`, sets `URLResourceKey.isExcludedFromBackupKey`, reads that exact directory's value back, resolves the path, and returns `{'path': path, 'backupExcludedVerified': true}` only when readback is true. Preserve standard Flutter plugin wiring for sqflite with portable `ios/Podfile` Generated.xcconfig lookup and optional Pods includes in Debug/Release xcconfig; source/static checks do not claim an iOS build or device proof.
 
 - [ ] **Step 10: Run Task 2 checks.**
 
@@ -1118,7 +1120,7 @@ test('second active cash insert exceeding aggregate cap rolls back before commit
 });
 ```
 
-Implement `SqliteAggregateGuard` used inside every transaction that changes active monetary state. It fetches affected active cents rows and calls `Money.sumCents` before commit. Read paths keep the same guard. Add comment in implementation: `// ponytail: O(n) aggregate scan, replace with materialized totals if ledger size makes writes slow.`
+Implement `SqliteAggregateGuard` used inside every transaction that changes active monetary state. It fetches affected active cents rows and calls `Money.sumCents` before commit; cash bill guards cap active income and active expense totals independently rather than combining gross movement across directions. Read paths keep the same guard. Add comment in implementation: `// ponytail: O(n) aggregate scan, replace with materialized totals if ledger size makes writes slow.`
 
 - [ ] **Step 10: Run Task 3 checks.**
 

@@ -7,15 +7,18 @@ final class SqliteAggregateGuard {
   static Future<void> ensureCashBillTotalWithinCap(DatabaseExecutor db) async {
     final rows = await db.query(
       'cash_bills',
-      columns: ['amount_cents'],
+      columns: ['direction', 'amount_cents'],
       where: 'is_void = 0',
     );
-    final total = rows.fold<BigInt>(
-      BigInt.zero,
-      (sum, row) => sum + BigInt.from(row['amount_cents']! as int),
-    );
-    if (total > BigInt.from(Money.maxCents)) {
-      throw const FormatException('金额超出允许范围');
+    final byDirection = <String, List<int>>{};
+    for (final row in rows) {
+      (byDirection[row['direction']! as String] ??= []).add(
+        row['amount_cents']! as int,
+      );
+    }
+    // ponytail: O(n) aggregate scan, replace with materialized totals if ledger size makes writes slow.
+    for (final cents in byDirection.values) {
+      Money.sumCents(cents);
     }
   }
 }
