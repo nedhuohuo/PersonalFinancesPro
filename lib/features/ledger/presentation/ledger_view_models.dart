@@ -71,12 +71,12 @@ final class CashLedgerViewModel extends ChangeNotifier {
       parties.where((party) => party.isActive).toList();
   List<Shop> get activeShops => shops.where((shop) => shop.isActive).toList();
 
-  Future<void> reload() async {
+  Future<void> reload({bool selectDefaults = true}) async {
     isLoading = true;
     errorMessage = null;
     _notify();
     try {
-      await _reloadCatalogs();
+      await _reloadCatalogs(selectDefaults: selectDefaults);
       bills = await _cashBillRepository.listCashBills(_filter());
       _statusRefreshRequired.clear();
     } catch (error) {
@@ -241,14 +241,14 @@ final class CashLedgerViewModel extends ChangeNotifier {
   String? partyName(int? id) =>
       id == null ? null : parties.firstWhere((party) => party.id == id).name;
 
-  Future<void> _reloadCatalogs() async {
+  Future<void> _reloadCatalogs({required bool selectDefaults}) async {
     shops = await _catalogRepository.listShops(includeInactive: true);
     accounts = await _catalogRepository.listAccountLabels(
       includeInactive: true,
     );
     parties = await _catalogRepository.listParties(includeInactive: true);
     categories = await _catalogRepository.listCategories(includeInactive: true);
-    _selectDefaults();
+    if (selectDefaults) _selectDefaults();
   }
 
   void _selectDefaults() {

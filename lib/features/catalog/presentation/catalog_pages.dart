@@ -46,33 +46,45 @@ class _CatalogPageState extends State<CatalogPage> {
     return AnimatedBuilder(
       animation: _viewModel,
       builder:
-          (context, _) => CupertinoPageScaffold(
-            navigationBar: CupertinoNavigationBar(
-              middle: Text(catalogKindTitle(widget.kind)),
-              transitionBetweenRoutes: false,
-              trailing: CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => _create(context),
-                child: const Text('新增'),
+          (context, _) => PopScope(
+            canPop: !_viewModel.isSaving,
+            child: CupertinoPageScaffold(
+              navigationBar: CupertinoNavigationBar(
+                middle: Text(catalogKindTitle(widget.kind)),
+                transitionBetweenRoutes: false,
+                trailing: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed:
+                      _viewModel.canMutate ? () => _create(context) : null,
+                  child: const Text('新增'),
+                ),
               ),
-            ),
-            child: SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.all(appPadding),
-                children: [
-                  if (_viewModel.isLoading)
-                    const InfoCard(title: '正在读取', body: '正在加载基础资料。'),
-                  if (_viewModel.errorMessage != null)
-                    InfoCard(title: '操作失败', body: _viewModel.errorMessage!),
-                  for (final item in _items())
-                    _CatalogRow(
-                      item: item,
-                      onRename: _rename,
-                      onDeactivate: _deactivate,
+              child: SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.all(appPadding),
+                  children: [
+                    if (_viewModel.isLoading)
+                      const InfoCard(title: '正在读取', body: '正在加载基础资料。'),
+                    if (_viewModel.errorMessage != null)
+                      InfoCard(title: '提示', body: _viewModel.errorMessage!),
+                    CupertinoButton(
+                      onPressed:
+                          _viewModel.isSaving || _viewModel.isLoading
+                              ? null
+                              : _viewModel.reload,
+                      child: const Text('刷新'),
                     ),
-                  if (_items().isEmpty)
-                    const InfoCard(title: '暂无资料', body: '点击右上角新增。'),
-                ],
+                    for (final item in _items())
+                      _CatalogRow(
+                        item: item,
+                        enabled: _viewModel.canMutate,
+                        onRename: _rename,
+                        onDeactivate: _deactivate,
+                      ),
+                    if (_items().isEmpty)
+                      const InfoCard(title: '暂无资料', body: '点击右上角新增。'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -113,36 +125,50 @@ class _CatalogPageState extends State<CatalogPage> {
   };
 
   Future<void> _create(BuildContext context) async {
+    if (!_viewModel.canMutate) return;
     final extra = await _pickExtra(context);
-    if (extra == null || !context.mounted) return;
-    final name = await _askName(context, '新增${catalogKindTitle(widget.kind)}');
-    if (name == null) return;
-    await switch (widget.kind) {
-      CatalogKind.shops => _viewModel.createShop(name),
-      CatalogKind.accounts => _viewModel.createAccount(name),
-      CatalogKind.parties => _viewModel.createParty(name, extra as PartyKind),
-      CatalogKind.categories => _viewModel.createCategory(
-        name,
-        extra as CashDirection,
-      ),
-      CatalogKind.channels => _viewModel.createChannel(name),
-    };
+    if (extra == null || !context.mounted || !_viewModel.canMutate) return;
+    await _askName(
+      context,
+      '新增${catalogKindTitle(widget.kind)}',
+      viewModel: _viewModel,
+      onSubmit:
+          (name) => switch (widget.kind) {
+            CatalogKind.shops => _viewModel.createShop(name),
+            CatalogKind.accounts => _viewModel.createAccount(name),
+            CatalogKind.parties => _viewModel.createParty(
+              name,
+              extra as PartyKind,
+            ),
+            CatalogKind.categories => _viewModel.createCategory(
+              name,
+              extra as CashDirection,
+            ),
+            CatalogKind.channels => _viewModel.createChannel(name),
+          },
+    );
   }
 
   Future<void> _rename(_CatalogItem item) async {
-    final name = await _askName(context, '重命名', initial: item.name);
-    if (name == null) return;
-    await switch (widget.kind) {
-      CatalogKind.shops => _viewModel.renameShop(item.id, name),
-      CatalogKind.accounts => _viewModel.renameAccount(item.id, name),
-      CatalogKind.parties => _viewModel.renameParty(item.id, name),
-      CatalogKind.categories => _viewModel.renameCategory(item.id, name),
-      CatalogKind.channels => _viewModel.renameChannel(item.id, name),
-    };
+    if (!_viewModel.canMutate) return;
+    await _askName(
+      context,
+      '重命名',
+      initial: item.name,
+      viewModel: _viewModel,
+      onSubmit:
+          (name) => switch (widget.kind) {
+            CatalogKind.shops => _viewModel.renameShop(item.id, name),
+            CatalogKind.accounts => _viewModel.renameAccount(item.id, name),
+            CatalogKind.parties => _viewModel.renameParty(item.id, name),
+            CatalogKind.categories => _viewModel.renameCategory(item.id, name),
+            CatalogKind.channels => _viewModel.renameChannel(item.id, name),
+          },
+    );
   }
 
   Future<void> _deactivate(_CatalogItem item) async {
-    if (!item.isActive) return;
+    if (!item.isActive || !_viewModel.canMutate) return;
     await switch (widget.kind) {
       CatalogKind.shops => _viewModel.deactivateShop(item.id),
       CatalogKind.accounts => _viewModel.deactivateAccount(item.id),
@@ -179,11 +205,13 @@ class _CatalogPageState extends State<CatalogPage> {
 class _CatalogRow extends StatelessWidget {
   const _CatalogRow({
     required this.item,
+    required this.enabled,
     required this.onRename,
     required this.onDeactivate,
   });
 
   final _CatalogItem item;
+  final bool enabled;
   final ValueChanged<_CatalogItem> onRename;
   final ValueChanged<_CatalogItem> onDeactivate;
 
@@ -200,11 +228,12 @@ class _CatalogRow extends StatelessWidget {
         child: Row(
           children: [
             CupertinoButton(
-              onPressed: () => onRename(item),
+              onPressed: enabled ? () => onRename(item) : null,
               child: const Text('重命名'),
             ),
             CupertinoButton(
-              onPressed: item.isActive ? () => onDeactivate(item) : null,
+              onPressed:
+                  enabled && item.isActive ? () => onDeactivate(item) : null,
               child: const Text('停用'),
             ),
           ],
@@ -222,19 +251,34 @@ final class _CatalogItem {
   final String detail;
 }
 
-Future<String?> _askName(
+Future<void> _askName(
   BuildContext context,
   String title, {
   String initial = '',
-}) => showCupertinoDialog<String>(
+  required CatalogViewModel viewModel,
+  required Future<bool> Function(String) onSubmit,
+}) => showCupertinoDialog<void>(
   context: context,
-  builder: (_) => _CatalogNameDialog(title: title, initial: initial),
+  builder:
+      (_) => _CatalogNameDialog(
+        title: title,
+        initial: initial,
+        viewModel: viewModel,
+        onSubmit: onSubmit,
+      ),
 );
 
 class _CatalogNameDialog extends StatefulWidget {
-  const _CatalogNameDialog({required this.title, required this.initial});
+  const _CatalogNameDialog({
+    required this.title,
+    required this.initial,
+    required this.viewModel,
+    required this.onSubmit,
+  });
   final String title;
   final String initial;
+  final CatalogViewModel viewModel;
+  final Future<bool> Function(String) onSubmit;
 
   @override
   State<_CatalogNameDialog> createState() => _CatalogNameDialogState();
@@ -252,22 +296,48 @@ class _CatalogNameDialogState extends State<_CatalogNameDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoAlertDialog(
-    title: Text(widget.title),
-    content: Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: CupertinoTextField(controller: _controller),
-    ),
-    actions: [
-      CupertinoDialogAction(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('取消'),
-      ),
-      CupertinoDialogAction(
-        onPressed: () => Navigator.of(context).pop(_controller.text),
-        child: const Text('保存'),
-      ),
-    ],
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.viewModel,
+    builder:
+        (context, _) => PopScope(
+          canPop: !widget.viewModel.isSaving,
+          child: CupertinoAlertDialog(
+            title: Text(widget.title),
+            content: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                children: [
+                  CupertinoTextField(controller: _controller),
+                  if (widget.viewModel.errorMessage != null)
+                    Text(widget.viewModel.errorMessage!),
+                ],
+              ),
+            ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed:
+                    widget.viewModel.isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              CupertinoDialogAction(
+                onPressed:
+                    widget.viewModel.canMutate
+                        ? () async {
+                          final committed = await widget.onSubmit(
+                            _controller.text,
+                          );
+                          if (committed && context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        }
+                        : null,
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        ),
   );
 }
 

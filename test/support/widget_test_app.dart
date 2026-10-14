@@ -122,7 +122,12 @@ final class RecordingCatalogRepository implements CatalogRepository {
                ? [const ResaleChannel(id: 1, name: '测试渠道', isActive: true)]
                : List.of(channels);
 
-  final Object? error;
+  Object? error;
+  Object? shopWriteError;
+  Future<void>? shopWriteGate;
+  int createShopCalls = 0;
+  int renameShopCalls = 0;
+  int deactivateShopCalls = 0;
   int _listCategoriesCalls = 0;
   int get listCategoriesCalls => _listCategoriesCalls;
   final List<Shop> _shops;
@@ -142,6 +147,9 @@ final class RecordingCatalogRepository implements CatalogRepository {
 
   @override
   Future<Shop> createShop({required String name}) async {
+    createShopCalls++;
+    await shopWriteGate;
+    if (shopWriteError != null) throw shopWriteError!;
     final item = Shop(id: _shops.length + 1, name: name, isActive: true);
     _shops.add(item);
     return item;
@@ -149,6 +157,9 @@ final class RecordingCatalogRepository implements CatalogRepository {
 
   @override
   Future<Shop> renameShop({required int id, required String name}) async {
+    renameShopCalls++;
+    await shopWriteGate;
+    if (shopWriteError != null) throw shopWriteError!;
     final old = _shops.firstWhere((item) => item.id == id);
     final item = Shop(id: id, name: name, isActive: old.isActive);
     _shops[_shops.indexOf(old)] = item;
@@ -156,7 +167,12 @@ final class RecordingCatalogRepository implements CatalogRepository {
   }
 
   @override
-  Future<void> deactivateShop(int id) async => _replaceShop(id, false);
+  Future<void> deactivateShop(int id) async {
+    deactivateShopCalls++;
+    await shopWriteGate;
+    if (shopWriteError != null) throw shopWriteError!;
+    _replaceShop(id, false);
+  }
 
   @override
   Future<List<AccountLabel>> listAccountLabels({

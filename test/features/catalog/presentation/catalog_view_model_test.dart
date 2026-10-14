@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:personal_finances_pro/features/catalog/domain/catalog_models.dart';
 import 'package:personal_finances_pro/features/catalog/presentation/catalog_view_model.dart';
@@ -35,6 +37,65 @@ void main() {
         isFalse,
       );
       expect(vm.channels.singleWhere((item) => item.id == 2).isActive, isFalse);
+      vm.dispose();
+    },
+  );
+  test(
+    'catalog shared mutation blocks concurrent kinds and retains direct-call semantics',
+    () async {
+      final repo = RecordingCatalogRepository();
+      final vm = CatalogViewModel(catalogRepository: repo);
+      await vm.reload();
+      final gate = Completer<void>();
+      repo.shopWriteGate = gate.future;
+      final first = vm.createShop('延迟创建');
+      await Future<void>.delayed(Duration.zero);
+      final blocked = vm.renameShop(1, '不应改名');
+      final unrelated = vm.createAccount('不应新增账户');
+      await Future<void>.delayed(Duration.zero);
+      final observed = (
+        repo.createShopCalls,
+        repo.renameShopCalls,
+        (await repo.listAccountLabels()).length,
+      );
+      gate.complete();
+      await first;
+      await blocked;
+      await unrelated;
+      expect(observed, (1, 0, 1));
+      vm.dispose();
+    },
+  );
+
+  test(
+    'catalog committed caught reload error locks all mutations until successful read',
+    () async {
+      final repo = RecordingCatalogRepository();
+      final vm = CatalogViewModel(catalogRepository: repo);
+      await vm.reload();
+      repo.error = Exception('刷新拒绝');
+      await vm.createShop('已提交');
+      expect(vm.errorMessage, contains('已保存，但刷新失败'));
+      await vm.createShop('不能重复');
+      await vm.deactivateShop(1);
+      await vm.createAccount('不能旁路');
+      expect(repo.createShopCalls, 1);
+      expect(repo.deactivateShopCalls, 0);
+      expect(
+        (await repo
+            .listAccountLabels(includeInactive: true)
+            .catchError((_) => <AccountLabel>[])),
+        isEmpty,
+      );
+      await vm.reload();
+      expect(vm.errorMessage, contains('已保存，但刷新失败'));
+      repo.error = null;
+      await vm.reload();
+      expect(vm.errorMessage, isNull);
+      expect(vm.shops.any((shop) => shop.name == '已提交'), isTrue);
+      expect((await repo.listAccountLabels()).length, 1);
+      await vm.createShop('真正新建');
+      expect(repo.createShopCalls, 2);
       vm.dispose();
     },
   );

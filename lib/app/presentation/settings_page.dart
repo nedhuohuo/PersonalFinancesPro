@@ -21,7 +21,11 @@ class SettingsPage extends StatelessWidget {
           _CatalogButton(title: '分类', route: '/settings/catalog/categories'),
           _CatalogButton(title: '渠道', route: '/settings/catalog/channels'),
           const InfoCard(title: 'AI记账', body: 'AI 服务尚未连接；不会在设置页收集或保存服务密钥。'),
-          const InfoCard(title: '安全与数据', body: '导入、导出、CSV 和完整备份在后续任务启用。'),
+          const InfoCard(
+            title: '安全与数据',
+            body:
+                '排除自动备份不等于备份；完整备份与恢复尚未实现。卸载或设备损坏可能导致未备份账本丢失。导入、导出和 CSV 在后续任务启用。',
+          ),
           const InfoCard(title: '显示', body: '跟随系统明暗模式和文字大小。'),
           const InfoCard(title: '隐私', body: '没有网络服务接入时，页面不会上传或同步任何账目。'),
           const InfoCard(title: '关于项目', body: 'Personal Finances Pro 网店账本基础版。'),

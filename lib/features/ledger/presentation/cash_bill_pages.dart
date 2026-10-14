@@ -29,11 +29,21 @@ class _CashBillFormPageState extends State<CashBillFormPage> {
         catalogRepository: context.read<CatalogRepository>(),
       );
   var _loaded = false;
+  bool? _wasActive;
   late bool _formReady = widget.id == null;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final active = context.watch<AppTab?>() == AppTab.ledger;
+    if (active && _wasActive == false) {
+      Future<void>.microtask(() async {
+        if (mounted && !_viewModel.isSaving && !_viewModel.isLoading) {
+          await _viewModel.reload(selectDefaults: false);
+        }
+      });
+    }
+    _wasActive = active;
     if (_loaded) return;
     _loaded = true;
     if (widget.id == null) _viewModel.beginNewCashBill();
@@ -226,6 +236,7 @@ class CashBillDetailPage extends StatefulWidget {
 }
 
 class _CashBillDetailPageState extends State<CashBillDetailPage> {
+  bool? _wasActive;
   late final CashLedgerViewModel _viewModel =
       widget.viewModelBuilder?.call(context) ??
       CashLedgerViewModel(
@@ -238,6 +249,20 @@ class _CashBillDetailPageState extends State<CashBillDetailPage> {
     super.initState();
     _viewModel.includeVoid = true;
     Future<void>.microtask(_viewModel.reload);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active = context.watch<AppTab?>() == AppTab.ledger;
+    if (active && _wasActive == false) {
+      Future<void>.microtask(() async {
+        if (mounted && !_viewModel.isSaving && !_viewModel.isLoading) {
+          await _viewModel.reload(selectDefaults: false);
+        }
+      });
+    }
+    _wasActive = active;
   }
 
   @override

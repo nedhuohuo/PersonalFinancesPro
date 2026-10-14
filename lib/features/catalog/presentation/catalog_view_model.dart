@@ -12,6 +12,11 @@ final class CatalogViewModel extends ChangeNotifier {
   var _disposed = false;
 
   bool isLoading = false;
+  bool isSaving = false;
+  bool _refreshRequired = false;
+
+  bool get canMutate =>
+      !_disposed && !isLoading && !isSaving && !_refreshRequired;
   String? errorMessage;
   List<Shop> shops = const [];
   List<AccountLabel> accounts = const [];
@@ -19,7 +24,12 @@ final class CatalogViewModel extends ChangeNotifier {
   List<Category> categories = const [];
   List<ResaleChannel> channels = const [];
 
-  Future<void> reload() async {
+  Future<bool> reload() async {
+    if (_disposed || isSaving || isLoading) return false;
+    return _reload();
+  }
+
+  Future<bool> _reload() async {
     isLoading = true;
     errorMessage = null;
     _notify();
@@ -35,75 +45,86 @@ final class CatalogViewModel extends ChangeNotifier {
       channels = await _catalogRepository.listResaleChannels(
         includeInactive: true,
       );
+      _refreshRequired = false;
+      return true;
     } catch (error) {
-      errorMessage = error.toString();
+      errorMessage = '${_refreshRequired ? '已保存，但刷新失败：' : ''}$error';
+      return false;
     } finally {
       isLoading = false;
       _notify();
     }
   }
 
-  Future<void> createShop(String name) =>
+  Future<bool> createShop(String name) =>
       _mutate(() => _catalogRepository.createShop(name: _requiredName(name)));
-  Future<void> renameShop(int id, String name) => _mutate(
+  Future<bool> renameShop(int id, String name) => _mutate(
     () => _catalogRepository.renameShop(id: id, name: _requiredName(name)),
   );
-  Future<void> deactivateShop(int id) =>
+  Future<bool> deactivateShop(int id) =>
       _mutate(() => _catalogRepository.deactivateShop(id));
 
-  Future<void> createAccount(String name) => _mutate(
+  Future<bool> createAccount(String name) => _mutate(
     () => _catalogRepository.createAccountLabel(name: _requiredName(name)),
   );
-  Future<void> renameAccount(int id, String name) => _mutate(
+  Future<bool> renameAccount(int id, String name) => _mutate(
     () => _catalogRepository.renameAccountLabel(
       id: id,
       name: _requiredName(name),
     ),
   );
-  Future<void> deactivateAccount(int id) =>
+  Future<bool> deactivateAccount(int id) =>
       _mutate(() => _catalogRepository.deactivateAccountLabel(id));
 
-  Future<void> createParty(String name, PartyKind kind) => _mutate(
+  Future<bool> createParty(String name, PartyKind kind) => _mutate(
     () => _catalogRepository.createParty(name: _requiredName(name), kind: kind),
   );
-  Future<void> renameParty(int id, String name) => _mutate(
+  Future<bool> renameParty(int id, String name) => _mutate(
     () => _catalogRepository.renameParty(id: id, name: _requiredName(name)),
   );
-  Future<void> deactivateParty(int id) =>
+  Future<bool> deactivateParty(int id) =>
       _mutate(() => _catalogRepository.deactivateParty(id));
 
-  Future<void> createCategory(String name, CashDirection direction) => _mutate(
+  Future<bool> createCategory(String name, CashDirection direction) => _mutate(
     () => _catalogRepository.createCategory(
       name: _requiredName(name),
       direction: direction,
     ),
   );
-  Future<void> renameCategory(int id, String name) => _mutate(
+  Future<bool> renameCategory(int id, String name) => _mutate(
     () => _catalogRepository.renameCategory(id: id, name: _requiredName(name)),
   );
-  Future<void> deactivateCategory(int id) =>
+  Future<bool> deactivateCategory(int id) =>
       _mutate(() => _catalogRepository.deactivateCategory(id));
 
-  Future<void> createChannel(String name) => _mutate(
+  Future<bool> createChannel(String name) => _mutate(
     () => _catalogRepository.createResaleChannel(name: _requiredName(name)),
   );
-  Future<void> renameChannel(int id, String name) => _mutate(
+  Future<bool> renameChannel(int id, String name) => _mutate(
     () => _catalogRepository.renameResaleChannel(
       id: id,
       name: _requiredName(name),
     ),
   );
-  Future<void> deactivateChannel(int id) =>
+  Future<bool> deactivateChannel(int id) =>
       _mutate(() => _catalogRepository.deactivateResaleChannel(id));
 
-  Future<void> _mutate(Future<Object?> Function() action) async {
+  /// True means the write committed, even when the following read failed.
+  Future<bool> _mutate(Future<Object?> Function() action) async {
+    if (!canMutate) return false;
+    isSaving = true;
     errorMessage = null;
     _notify();
     try {
       await action();
-      await reload();
+      _refreshRequired = true;
+      if (!_disposed) await _reload();
+      return true;
     } catch (error) {
       errorMessage = error.toString();
+      return false;
+    } finally {
+      isSaving = false;
       _notify();
     }
   }
