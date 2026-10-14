@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:personal_finances_pro/app/presentation/page_widgets.dart';
 import 'package:personal_finances_pro/core/domain/local_date.dart';
 import 'package:personal_finances_pro/core/domain/money.dart';
 import 'package:personal_finances_pro/features/catalog/domain/catalog_models.dart';
@@ -1094,7 +1095,17 @@ void main() {
       );
       await settle(tester);
       await reveal(tester, find.textContaining('实付净额 10.00'));
-      expect(find.textContaining(supplier.name), findsOneWidget);
+      final purchaseSummary = find.ancestor(
+        of: find.text('采购 #$id'),
+        matching: find.byType(InfoCard),
+      );
+      expect(
+        find.descendant(
+          of: purchaseSummary,
+          matching: find.textContaining(supplier.name),
+        ),
+        findsOneWidget,
+      );
       await tap(tester, '新增付款');
       for (final entry in [('付款账户', account.name), ('付款分类', category.name)]) {
         final row = find.textContaining('${entry.$1}：');
@@ -1131,6 +1142,170 @@ void main() {
       expect(
         tester.widget<CupertinoTextField>(field('商品描述 1')).controller!.text,
         '保留输入',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'FFI completed resale retains distinct inactive fee counterparty in business and linked cash details',
+    (tester) async {
+      final h = await realApp(tester, '问题件转卖');
+      final feeParty =
+          (await tester.runAsync(
+            () => h.createParty(name: '历史费用往来方', kind: PartyKind.other),
+          ))!;
+      final feeAccount =
+          (await tester.runAsync(() => h.createAccount('费用独立账户')))!;
+      final account =
+          (await tester.runAsync(() => h.catalog.listAccountLabels()))!.first;
+      final expense =
+          (await tester.runAsync(
+            () => h.catalog.listCategories(direction: CashDirection.expense),
+          ))!.first;
+      final income =
+          (await tester.runAsync(
+            () => h.catalog.listCategories(direction: CashDirection.income),
+          ))!.first;
+      final channel =
+          (await tester.runAsync(() => h.catalog.listResaleChannels()))!.first;
+      await type(tester, '问题件描述', '归属回归');
+      await type(tester, '转卖收入', '15');
+      await tap(tester, '到基础资料新增买家，返回后刷新');
+      await tap(tester, '新增');
+      await tester.tap(find.widgetWithText(CupertinoActionSheetAction, '买家'));
+      await settle(tester);
+      await tester.enterText(find.byType(CupertinoTextField), '真实新增买家');
+      await tester.runAsync(
+        () => tester.tap(find.widgetWithText(CupertinoDialogAction, '保存')),
+      );
+      await settle(tester);
+      final buyer = (await tester.runAsync(
+        () => h.catalog.listParties(kind: PartyKind.buyer),
+      ))!.singleWhere((p) => p.name == '真实新增买家');
+      await tester.pageBack();
+      await settle(tester);
+      await tap(tester, '刷新');
+      await select(tester, '买家', buyer.name);
+      await reveal(tester, field('问题件描述'));
+      expect(
+        tester.widget<CupertinoTextField>(field('问题件描述')).controller!.text,
+        '归属回归',
+      );
+      await select(tester, '转卖渠道', channel.name);
+      await cashSelectors(
+        tester,
+        '收入',
+        account: account.name,
+        category: income.name,
+      );
+      for (var i = 1; i <= 2; i++) {
+        await tap(tester, '添加独立费用');
+        await type(tester, '费用金额 $i', i == 1 ? '2' : '1');
+        await cashSelectors(
+          tester,
+          '费用 $i ',
+          account: feeAccount.name,
+          category: expense.name,
+        );
+        if (i == 1) await select(tester, '费用往来方 $i', feeParty.name);
+      }
+      await tap(tester, '保存转卖');
+      expect(find.text('转卖详情'), findsOneWidget);
+      final resale =
+          (await tester.runAsync(
+            () => h.ledger.listProblemResales(const ProblemResaleFilter()),
+          ))!.single;
+      expect(resale.buyerId, buyer.id);
+      final detail =
+          (await tester.runAsync(
+            () => h.ledger.getProblemResaleDetail(resale.id),
+          ))!;
+      final bills =
+          (await tester.runAsync(
+            () => h.cashBills.listCashBills(const CashBillFilter()),
+          ))!;
+      final attributed = bills.singleWhere(
+        (b) =>
+            b.id ==
+            detail.fees.singleWhere((f) => f.amount.cents == 200).cashBillId,
+      );
+      final unattributed = bills.singleWhere(
+        (b) =>
+            b.id ==
+            detail.fees.singleWhere((f) => f.amount.cents == 100).cashBillId,
+      );
+      expect(attributed.partyId, feeParty.id);
+      expect(attributed.partyId, isNot(buyer.id));
+      expect(attributed.accountId, feeAccount.id);
+      expect(
+        bills.singleWhere((b) => b.id == resale.incomeCashBillId).accountId,
+        account.id,
+      );
+      expect(unattributed.partyId, isNull);
+      await tester.runAsync(() => h.catalog.deactivateParty(feeParty.id));
+      final historical = (await tester.runAsync(
+        () => h.catalog.listParties(includeInactive: true),
+      ))!.singleWhere((p) => p.id == feeParty.id);
+      expect(historical.isActive, isFalse);
+      await tap(tester, '刷新');
+
+      Finder feeCard(String amount) => find.ancestor(
+        of: find.text('费用 $amount'),
+        matching: find.byType(InfoCard),
+      );
+      await reveal(tester, feeCard('1.00'));
+      final noPartyLink = find.descendant(
+        of: feeCard('1.00'),
+        matching: find.byType(CupertinoButton),
+      );
+      final noPartyText =
+          tester
+              .widget<Text>(
+                find.descendant(of: noPartyLink, matching: find.byType(Text)),
+              )
+              .data!;
+      expect(noPartyText, isNot(contains('null')));
+      expect(noPartyText, isNot(contains('往来方')));
+      await tester.runAsync(() => tester.tap(noPartyLink));
+      await settle(tester);
+      final noPartyCash = tester.widget<InfoCard>(
+        find.widgetWithText(InfoCard, '支出 1.00'),
+      );
+      expect(noPartyCash.body, isNot(contains('null')));
+      expect(noPartyCash.body, isNot(contains('往来方')));
+      await tester.pageBack();
+      await settle(tester);
+
+      await reveal(tester, feeCard('2.00'));
+      final feeLink = find.descendant(
+        of: feeCard('2.00'),
+        matching: find.byType(CupertinoButton),
+      );
+      final feeText =
+          tester
+              .widget<Text>(
+                find.descendant(of: feeLink, matching: find.byType(Text)),
+              )
+              .data!;
+      final businessShowsHistoricalParty = feeText.contains(
+        '往来方 ${historical.name}',
+      );
+      expect(feeText, isNot(contains(buyer.name)));
+      await tester.runAsync(() => tester.tap(feeLink));
+      await settle(tester);
+      final feeCash = tester.widget<InfoCard>(
+        find.widgetWithText(InfoCard, '支出 2.00'),
+      );
+      expect(feeCash.body, isNot(contains(buyer.name)));
+      expect(
+        [
+          businessShowsHistoricalParty,
+          feeCash.body.contains('往来方 ${historical.name}'),
+        ],
+        [true, true],
+        reason:
+            'Both saved business fee and linked cash must show their actual inactive counterparty, not the buyer.',
       );
       expect(tester.takeException(), isNull);
     },

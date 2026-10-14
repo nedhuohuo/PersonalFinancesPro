@@ -315,7 +315,7 @@ class _CashBillDetailBody extends StatelessWidget {
           title:
               '${bill.direction == CashDirection.income ? '收入' : '支出'} ${bill.amount.format()}',
           body:
-              '${bill.businessDate.value} · ${viewModel.shopName(bill.scope.shopId)} · ${viewModel.categoryName(bill.categoryId)} · ${viewModel.accountName(bill.accountId)}${bill.isVoid ? ' · 已作废' : ''}',
+              '${bill.businessDate.value} · ${viewModel.shopName(bill.scope.shopId)} · ${viewModel.categoryName(bill.categoryId)} · ${viewModel.accountName(bill.accountId)}${bill.partyId == null ? '' : ' · 往来方 ${viewModel.partyName(bill.partyId)}'}${bill.isVoid ? ' · 已作废' : ''}',
           child: Text(bill.note.isEmpty ? '无备注' : bill.note),
         ),
         const SizedBox(height: 12),

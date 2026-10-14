@@ -281,7 +281,7 @@ Widget businessCashLink(
     if (context.mounted) await onReturn();
   },
   child: Text(
-    '${bill.businessDate.value} · ${catalogs.categoryName(bill.categoryId)} · ${catalogs.accountName(bill.accountId)} · ${catalogs.scopeName(bill.scope)} · ${bill.amount.format()}${bill.isVoid ? '（已作废）' : ''} · ${bill.note}',
+    '${bill.businessDate.value} · ${catalogs.categoryName(bill.categoryId)} · ${catalogs.accountName(bill.accountId)}${bill.partyId == null ? '' : ' · 往来方 ${catalogs.partyName(bill.partyId!)}'} · ${catalogs.scopeName(bill.scope)} · ${bill.amount.format()}${bill.isVoid ? '（已作废）' : ''} · ${bill.note}',
   ),
 );
 
