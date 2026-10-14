@@ -2,7 +2,7 @@
 
 面向多网店的平台外经营账本，计划使用 Flutter 支持 Android 与 iOS。
 
-> 当前阶段：产品设计已确认，OpenDesign 原型已更新为 Apple 风格及消息式 AI 对话，Flutter 工程基础计划已同步。尚未初始化 Flutter 项目，没有可运行的 Android/iOS App。
+> 当前阶段：Flutter 工程基础、纯 Dart 金额领域模型、Cupertino 页面骨架、领域边界检查和 CI 配置已建立。SQLite 账本、真实 AI、备份/恢复和原生打包验收尚未实现。
 
 ## 首版范围
 
@@ -16,7 +16,15 @@
 
 ## 技术方向
 
-Flutter stable、Cupertino Apple 风格、Clean 分层、纯 Dart 领域规则、SQLite 本地存储；参考 Flutter 官方架构指南及 Effective Dart。首版不提供账号、后台或自动跨设备同步。
+Flutter stable 3.29.2、Cupertino Apple 风格、Clean 分层、纯 Dart 领域规则、SQLite 本地存储；参考 Flutter 官方架构指南及 Effective Dart。首版不提供账号、后台或自动跨设备同步。
+
+本仓库固定 `.flutter-version` 为 `3.29.2`。使用任意已安装的同版本 Flutter SDK，并显式调用该 SDK 的命令：
+
+```sh
+export FLUTTER_SDK=/path/to/flutter-3.29.2
+"$FLUTTER_SDK/bin/flutter" --version # 应显示 Flutter 3.29.2
+"$FLUTTER_SDK/bin/dart" --version
+```
 
 详细范围、记账口径、安全约束及验收标准见：
 
@@ -45,6 +53,21 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory docs/ui/prototype
 
 网页原型只是 Flutter UI 实现参考，不会嵌入正式 App。已模拟9组宽度/上下安全区场景及聊天输入栏位置；真机系统栏、横向刘海、文字缩放与键盘仍需 Flutter Widget/设备验证，不能据此声称双端兼容已完成。
 
+## 功能完成状态
+
+| 交付项 | 当前状态 |
+|---|---|
+| 产品与架构设计 | 已确认 |
+| OpenDesign Apple 风格/对话原型 | 已更新，并验证实际 sandbox 预览 |
+| Flutter 双端工程骨架 | 已初始化 |
+| 纯 Dart 金额模型 | 已实现整数分，精确解析最多两位小数，超精度拒绝 |
+| Cupertino 页面骨架 | 已实现首页、账本、AI、设置四入口；仅占位说明 |
+| 领域边界检查与 CI | 已实现 |
+| SQLite 账本、采购付款、快递预付 | 尚未实现 |
+| 统计、导出、备份恢复 | 尚未实现 |
+| DeepSeek 安全配置与对话记账 | 尚未实现；Flutter 内 AI 发送/确认保持禁用 |
+| Android/iOS 构建验证 | 尚未通过本机原生构建验收；需具备对应工具和许可 |
+
 ## 隐私
 
 正式 App 的设计要求：账本存储在用户设备；AI 功能在用户同意后向所配置服务商发送本次任务所需内容，服务商可能收取 API 费用；API Key 使用系统安全存储，不随账本备份导出。上述能力尚未在 Flutter 中实现。
@@ -53,16 +76,16 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory docs/ui/prototype
 
 ## 开发与验证
 
-| 交付项 | 当前状态 |
-|---|---|
-| 产品与架构设计 | 已确认 |
-| OpenDesign Apple 风格/对话原型 | 已更新，并验证实际 sandbox 预览 |
-| 原型金额、消息意图及浏览器交互检查 | 已通过；仍为虚构数据演示 |
-| Flutter 双端工程、原生页面与 CI | 已有工程基础计划，尚未实现 |
-| SQLite 账本、采购付款、快递预付 | 尚未实现 |
-| 统计、导出、备份恢复 | 尚未实现 |
-| DeepSeek 安全配置与对话记账 | 尚未实现 |
-| Android/iOS 构建验证 | 尚未执行；环境存在待解决问题 |
+使用固定 SDK，不依赖 PATH 上的 Flutter/Dart：
+
+```sh
+export FLUTTER_SDK=/path/to/flutter-3.29.2
+"$FLUTTER_SDK/bin/flutter" pub get
+"$FLUTTER_SDK/bin/dart" format --output=none --set-exit-if-changed lib test tool
+"$FLUTTER_SDK/bin/dart" run tool/check_domain_boundaries.dart
+"$FLUTTER_SDK/bin/flutter" analyze
+"$FLUTTER_SDK/bin/flutter" test
+```
 
 原型模型检查使用 Node，无测试框架依赖：
 
@@ -76,8 +99,6 @@ node docs/ui/prototype/check-chat.mjs
 ```sh
 node docs/ui/prototype/browser-check.mjs
 ```
-
-工程基础计划固定 Flutter stable 3.29.2（本机现有版本，非最新版本声明），使用该 SDK 自带 Dart，不使用 PATH 上不匹配的独立 Dart。当前不能运行 `flutter run` 或 Flutter 应用测试。
 
 ## License
 

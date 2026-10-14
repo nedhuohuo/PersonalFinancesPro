@@ -228,7 +228,7 @@ Set `initialLocation: '/home'`. `ShopLedgerApp` owns its router in State, create
 
 **Interfaces:** Produces a nonzero exit code for forbidden domain imports; CI reads `.flutter-version`, checks format/analyze/tests on push/PR and builds Android on main.
 
-- [ ] Implement a Dart stdlib check scanning files in `lib/**/domain/` and `lib/core/domain/`. For each import/export reject any `package:` dependency except `package:personal_finances_pro/` paths that themselves stay in domain; relative paths must resolve inside a domain folder. Permit `dart:` libraries. It must reject a deliberately injected Flutter import during a temporary fixture check, then pass the actual sources.
+- [ ] Implement a domain-boundary check scanning files in `lib/**/domain/` and `lib/core/domain/`. Use the official Dart analyzer as a development-only dependency so raw, escaped, triple-quoted and conditional import/export URI branches are decoded by the Dart parser instead of a custom lexer. For each import/export reject any `package:` dependency except `package:personal_finances_pro/` paths that themselves stay in domain; relative paths must resolve inside a domain folder. Permit `dart:` libraries. It must reject a deliberately injected Flutter import during a temporary fixture check, then pass the actual sources.
 - [ ] Add GitHub Actions trigger `push` and `pull_request`, read `.flutter-version` into step output, install that exact Flutter stable version, then run:
 
 ```sh
