@@ -1,0 +1,41 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+.fvm/
+
+# Editor and OS files
+.idea/
+*.iml
+.DS_Store
+
+# Local data and credentials: never publish real accounting data
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+backups/
+exports/
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+**/key.properties
+**/local.properties
+
+# Native generated files
+**/.gradle/
+**/Pods/
+**/.symlinks/
+**/Flutter/ephemeral/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+**/xcuserdata/
+
+# Application dependency lockfiles and project SDK version config are tracked.
